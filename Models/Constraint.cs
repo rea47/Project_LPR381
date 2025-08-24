@@ -4,39 +4,50 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Project_LPR31.Models
+namespace Project_LPR381.Models
+
 {
-    /// Enumeration for optimization direction
-    public enum ObjectiveType
+    /// Represents a constraint in the linear programming model
+    public class Constraint
     {
-        Maximize,
-        Minimize
-    }
+        public double[] Coefficients { get; set; }
+        public string Relation { get; set; }
+        public double RightHandSide { get; set; }
+        public ConstraintRelation ConstraintType { get; set; }
 
-    /// Enumeration for constraint relations
-    public enum ConstraintRelation
-    {
-        LessOrEqual,
-        GreaterOrEqual,
-        Equal
-    }
+        public Constraint(double[] coefficients, string relation, double rhs)
+        {
+            Coefficients = coefficients ?? throw new ArgumentNullException(nameof(coefficients));
+            Relation = relation ?? throw new ArgumentNullException(nameof(relation));
+            RightHandSide = rhs;
+            ConstraintType = ParseRelation(relation);
+        }
 
-    /// Enumeration for variable sign restrictions
-    public enum SignRestriction
-    {
-        NonNegative,    // +
-        NonPositive,    // -
-        Unrestricted,   // urs
-        Integer,        // int
-        Binary          // bin
-    }
+        /// Parse string relation to enum type
+        private ConstraintRelation ParseRelation(string relation)
+        {
+            if (relation == null)
+                throw new ArgumentException("Relation cannot be null", nameof(relation));
 
-    /// Enumeration for solution status (for future solver integration)
-    public enum SolutionStatus
-    {
-        Optimal,
-        Infeasible,
-        Unbounded,
-        Unknown
+            switch (relation.Trim())
+            {
+                case "<=":
+                    return ConstraintRelation.LessOrEqual;
+                case ">=":
+                    return ConstraintRelation.GreaterOrEqual;
+                case "=":
+                    return ConstraintRelation.Equal;
+                default:
+                    throw new ArgumentException($"Invalid constraint relation: {relation}", nameof(relation));
+            }
+        }
+
+        /// Get human-readable string representation of the constraint
+        public override string ToString()
+        {
+            var coeffStr = string.Join(" ", Coefficients.Select((c, i) =>
+                $"{(c >= 0 && i > 0 ? "+" : "")}{c:F3}x{i + 1}"));
+            return $"{coeffStr} {Relation} {RightHandSide:F3}";
+        }
     }
 }
