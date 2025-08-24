@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OperationsResearchSolver;
 
-namespace Project_LPR31
+namespace Project_LPR381
 {
     // A simple enum to represent the outcome of a solve attempt.
     public enum SolveResult { Optimal, Infeasible, Unbounded }

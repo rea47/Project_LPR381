@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using OperationsResearchSolver;
 
-namespace Project_LPR31
+namespace Project_LPR381
 {
     /// Parses an input text file into a structured LpModel object.
     public static class ModelParser

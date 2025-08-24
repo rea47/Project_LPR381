@@ -2,7 +2,7 @@
 using System.IO;
 using OperationsResearchSolver;
 
-namespace Project_LPR31
+namespace Project_LPR381
 {
     /// Handles writing all formatted output to the specified text file.
     public static class OutputWriter

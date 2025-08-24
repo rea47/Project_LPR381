@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 
-using Project_LPR31;
+using Project_LPR381;
 
 namespace OperationsResearchSolver
 {

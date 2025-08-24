@@ -1,7 +1,7 @@
 ﻿using System;
 using OperationsResearchSolver;
 
-namespace Project_LPR31
+namespace Project_LPR381
 {
     class Program
     {
