@@ -31,9 +31,7 @@ namespace Project_LPR381.Util
             ");
             Console.ResetColor();
             Console.WriteLine("\n         Welcome to the Operations Research Solver!");
-            Console.WriteLine("    Parse Linear Programming models and generate output files");
-            Console.WriteLine("              with comprehensive error handling\n");
-            Console.WriteLine("Press any key to continue...");
+            Console.WriteLine("\n Press any key to continue...");
             Console.ReadKey();
         }
 
