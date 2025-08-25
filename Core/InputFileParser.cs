@@ -189,6 +189,8 @@ namespace Project_LPR31.Core
                 var coefficients = new List<double>();
                 for (int i = 0; i < relationIndex; i++)
                 {
+                    if (parts[i] == "+") continue; // NEW: skip lone plus
+
                     if (double.TryParse(parts[i], out double coeff))
                     {
                         coefficients.Add(coeff);
