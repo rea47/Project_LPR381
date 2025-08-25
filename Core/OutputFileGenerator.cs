@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Project_LPR31.Core
+namespace Project_LPR381.Core
 {
     /// Generates comprehensive output files with canonical forms and analysis
     public class OutputFileGenerator

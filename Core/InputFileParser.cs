@@ -1,4 +1,4 @@
-﻿using Project_LPR31.Exceptions;
+﻿using Project_LPR381.Exceptions;
 using Project_LPR381.Models;
 using System;
 using System.Collections.Generic;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Project_LPR31.Core
+namespace Project_LPR381.Core
 {
     /// Comprehensive input file parser for linear programming models
     /// Handles random numbers of variables and constraints with robust error detection
@@ -262,16 +262,17 @@ namespace Project_LPR31.Core
                     throw new InvalidModelException($"Line {lineNumber}: No sign restrictions found");
                 }
 
-                // Validate count matches objective function variables
+                // Warn if mismatch instead of treating as hard error
                 if (model.ObjectiveCoefficients.Length > 0 && parts.Length != model.ObjectiveCoefficients.Length)
                 {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Found {parts.Length} sign restrictions, but objective function has {model.ObjectiveCoefficients.Length} variables");
+                    model.ParsingErrors.Add($"Warning (Line {lineNumber}): Found {parts.Length} sign restrictions, but objective function has {model.ObjectiveCoefficients.Length} variables. Missing restrictions will default to NonNegative.");
                 }
 
                 foreach (var part in parts)
                 {
                     SignRestriction restriction;
-                    string trimmedPart = part.ToLower().Trim();
+                    // Normalize token (remove punctuation, lowercase)
+                    string trimmedPart = new string(part.ToLower().Trim().Where(char.IsLetter).ToArray());
 
                     switch (trimmedPart)
                     {
@@ -300,15 +301,16 @@ namespace Project_LPR31.Core
                             break;
                         default:
                             model.ParsingErrors.Add($"Line {lineNumber}: Invalid sign restriction '{part}'. Valid options: +, -, urs, int, bin");
-                            restriction = SignRestriction.NonNegative; // Default fallback
+                            restriction = SignRestriction.NonNegative; // fallback
                             break;
                     }
 
                     model.SignRestrictions.Add(restriction);
                 }
 
-                // Analyze variable type distribution
-                var restrictionCounts = model.SignRestrictions
+
+        // Analyze variable type distribution
+        var restrictionCounts = model.SignRestrictions
                     .GroupBy(r => r)
                     .ToDictionary(g => g.Key, g => g.Count());
 

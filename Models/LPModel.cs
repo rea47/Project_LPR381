@@ -21,6 +21,8 @@ namespace Project_LPR381.Models
         /// Indicates if the model contains any parsing errors
         public bool HasErrors => ParsingErrors.Count > 0;
 
+        public bool IsValid { get; internal set; }
+
         public LinearProgrammingModel()
         {
             Variables = new List<Variable>();
@@ -97,7 +99,8 @@ namespace Project_LPR381.Models
         public int BinaryVariableCount { get; set; }
         public int UnrestrictedVariableCount { get; set; }
         public int ErrorCount { get; set; }
-        public bool IsValid { get; set; }
+        public bool ReadyForSolving { get; set; } = false;
+        public bool IsValid { get; set; } = false;
 
         public override string ToString()
         {

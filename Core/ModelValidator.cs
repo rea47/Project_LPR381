@@ -1,13 +1,9 @@
-﻿using Project_LPR31.Exceptions;
+﻿using Project_LPR381.Exceptions;
 using Project_LPR381.Models;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-
-namespace Project_LPR31.Core
+namespace Project_LPR381.Core
 {
     /// Validates linear programming models and detects potential issues
     public class ModelValidator
