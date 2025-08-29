@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Project_LPR381.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,7 +17,7 @@ namespace Project_LPR31.Algorithms
             {
                 Console.Clear();
                 Console.WriteLine("  Linear Programming Duality Solver");
-                //Console.WriteLine("1. Apply Duality to Programming Model");
+                Console.WriteLine("1. Apply Duality to Programming Model");
                 Console.WriteLine("2. Solve Dual Programming Model");
                 Console.WriteLine("3. Verify Strong/Weak Duality");
                 Console.WriteLine("4. Exit");
@@ -47,44 +48,53 @@ namespace Project_LPR31.Algorithms
 
         static void ApplyDuality()
         {
+            LinearProgrammingModel lpm = new LinearProgrammingModel();
             Console.Clear();
-            Console.WriteLine("=== Apply Duality ==="); //just going to wait to call from LPModels
-
-            // Example: primal (max c^T x, Ax <= b)
-            // Dual: (min b^T y, A^T y >= c, y >= 0)
-
-            Console.WriteLine("Enter number of constraints (m): ");
-            int m = int.Parse(Console.ReadLine());
-
-            Console.WriteLine("Enter number of variables (n): ");
-            int n = int.Parse(Console.ReadLine());
-
-            Console.WriteLine("Primal coefficients (c vector): ");
-            double[] c = new double[n];
-            for (int i = 0; i < n; i++)
+            bool valid = true;
+            Console.WriteLine("Is this the correct LP Model? (Y/N)");
+            while (!valid)
             {
-                Console.Write($"c[{i + 1}]: ");
-                c[i] = double.Parse(Console.ReadLine());
-            }
 
-            Console.WriteLine("\nPrimal constraints matrix (A): ");
-            double[,] A = new double[m, n];
-            for (int i = 0; i < m; i++)
-            {
-                for (int j = 0; j < n; j++)
+                string srt = "| \t"; //The LP top row for variable names and stuff
+                string cols = String.Join("| ", lpm.Variables);
+                string srtcols = srt + cols;
+                string rest = "| Sign | RHS";
+                string full = srtcols + rest + " |";
+                Console.WriteLine(full);
+
+                string obj = "| "+lpm.ObjectiveType + " Z"; //first row of the LP Model which is the objective function
+                string coeffs = String.Join("| ", lpm.ObjectiveCoefficients);
+                string objcoeffs = obj + coeffs;
+                string restr1 = "| \t| \t";
+                string fullr1 = objcoeffs + restr1 + " |";
+                Console.WriteLine(fullr1);
+
+                for (int i = 1; i < lpm.Constraints.Count+1; i++) //rest of the rows which is constraints as well as Xs being >0 and whatnot
                 {
-                    Console.Write($"A[{i + 1},{j + 1}]: ");
-                    A[i, j] = double.Parse(Console.ReadLine());
+                    string csrt = "|\t" + i.ToString();
+                    string ccols = String.Join("| ", lpm.Constraints[i-1].Coefficients);
+                    string csrtcols = csrt + ccols;
+                    string signandrhs = "|" + lpm.SignRestrictions[i-1]+"\t |\t";
+                }
+
+                string res =  Console.ReadLine().ToUpper();
+                switch (res)
+                {
+                    case "Y":
+                        //duality results here
+                        break;
+                    case "N":
+                        Console.WriteLine("Returning to main menu...");
+                        //go to main menu where they upload or put the correct stuff in.
+                        return;
+                    default:
+                        Console.WriteLine("Please enter a valid response.");
+                        Console.ReadKey();
+                        break;
                 }
             }
 
-            Console.WriteLine("\nRight-hand side vector (b): ");
-            double[] b = new double[m];
-            for (int i = 0; i < m; i++)
-            {
-                Console.Write($"b[{i + 1}]: ");
-                b[i] = double.Parse(Console.ReadLine());
-            }
+
 
             Console.WriteLine("\n--- Dual Model ---");
             Console.WriteLine("Minimize: b^T y");

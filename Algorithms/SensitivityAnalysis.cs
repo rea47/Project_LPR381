@@ -19,7 +19,8 @@ namespace Project_LPR31.Algorithms
         }
 
         public void ComputeRangesForVariables() {
-            while(true)
+            bool exit = false;
+            while(!exit)
             {
                 Console.Clear();
                 Console.WriteLine("Please select an option for computing ranges for variables:");
@@ -50,6 +51,9 @@ namespace Project_LPR31.Algorithms
                     case ("4"):
                         break;
                     case ("5"):
+                        break;
+                    case ("0"):
+                        exit = true; //exits loop
                         break;
                     default:
                         Console.WriteLine("Invalid option, please select a whole number from 1 to 5, or 0 to exit. :)");
