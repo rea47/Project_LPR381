@@ -30,6 +30,7 @@ namespace Project_LPR31.Algorithms
                 Console.WriteLine("5. Calculate shadow prices.");
                 Console.WriteLine("0. Return to the previous ");
                 string options = Console.ReadLine();
+                
                 if(!int.TryParse(options, out int opt) || opt < 0 || opt > 5)
                 {
                     Console.WriteLine("Invalid option. Please try again.");
@@ -38,11 +39,11 @@ namespace Project_LPR31.Algorithms
                 switch (options)
                 {
                     case ("1"):
-                        
+                        //how the fuck do you do matrices???
 
                         break;
                     case ("2"):
-
+                        //i think i can do this
                         break;
                     case ("3"):
                         break;
