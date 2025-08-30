@@ -9,20 +9,13 @@ namespace Project_LPR31.Algorithms
 {
     class Program
     {
-        static void Main(string[] args)
+        /// Run basic duality analysis for a given LP model
+        public void Run(LinearProgrammingModel model)
         {
-            bool exit = false;
-
-            while (!exit)
-            {
                 Console.Clear();
-                Console.WriteLine("  Linear Programming Duality Solver");
-                Console.WriteLine("1. Apply Duality to Programming Model");
-                Console.WriteLine("2. Solve Dual Programming Model");
-                Console.WriteLine("3. Verify Strong/Weak Duality");
-                Console.WriteLine("4. Exit");
+            Console.WriteLine("=== DUALITY ANALYSIS ===\n");
 
-                string input = Console.ReadLine();
+            // TODO: Properly generate dual from model
 
                 switch (input)
                 {
