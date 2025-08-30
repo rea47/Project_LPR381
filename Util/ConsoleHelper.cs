@@ -47,9 +47,11 @@ namespace Project_LPR381.Util
 
             Console.WriteLine("║  [1] Load Input File                                          ║");
             Console.WriteLine("║  [2] View Current Model                                       ║");
-            Console.WriteLine("║  [3] Export Results to File                                   ║");
-            Console.WriteLine("║  [4] About                                                    ║");
-            Console.WriteLine("║  [5] Quit                                                     ║");
+            Console.WriteLine("║  [3] Duality Analysis                                         ║");
+            Console.WriteLine("║  [4] Sensitivity Analysis                                     ║");
+            Console.WriteLine("║  [5] Export Results to File                                   ║");
+            Console.WriteLine("║  [6] About                                                    ║");
+            Console.WriteLine("║  [7] Quit                                                     ║");
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("╚═══════════════════════════════════════════════════════════════╝");

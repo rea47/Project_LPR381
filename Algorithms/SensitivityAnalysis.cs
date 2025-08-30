@@ -18,9 +18,10 @@ namespace Project_LPR31.Algorithms
             this.model = model;
         }
 
-        public void ComputeRangesForVariables() {
+        public void ComputeRangesForVariables()
+        {
             bool exit = false;
-            while(!exit)
+            while (!exit)
             {
                 Console.Clear();
                 Console.WriteLine("Please select an option for computing ranges for variables:");
@@ -31,8 +32,8 @@ namespace Project_LPR31.Algorithms
                 Console.WriteLine("5. Calculate shadow prices.");
                 Console.WriteLine("0. Return to the previous ");
                 string options = Console.ReadLine();
-                
-                if(!int.TryParse(options, out int opt) || opt < 0 || opt > 5)
+
+                if (!int.TryParse(options, out int opt) || opt < 0 || opt > 5)
                 {
                     Console.WriteLine("Invalid option. Please try again.");
                     continue;
@@ -64,12 +65,14 @@ namespace Project_LPR31.Algorithms
 
         }
 
-        public void ComputeRangesForConstraints() {
-            /* TODO */ 
+        public void ComputeRangesForConstraints()
+        {
+            /* TODO */
         }
 
-        public void ComputeShadowPrices() {
-            /* TODO */ 
+        public void ComputeShadowPrices()
+        {
+            /* TODO */
         }
 
         public void ApplyChangeToCoefficient(int varIndex, double newCoeff) { /* TODO */ }
