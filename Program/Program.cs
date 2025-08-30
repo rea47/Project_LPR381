@@ -275,6 +275,7 @@ namespace Project_LPR381
         /// Run duality analysis on the current model
         private static void ShowDualityMenu()
         {
+            LinearProgrammingModel lpm = new LinearProgrammingModel();
             bool back = false;
             var duality = new Project_LPR31.Algorithms.DualityAlgo();
 
@@ -305,13 +306,13 @@ namespace Project_LPR381
                         break;
 
                     case "2":
-                        duality.SolveDualModel();
+                        duality.SolveDualModel(lpm);
                         Console.WriteLine("\nReturning to Duality Menu...");
                         System.Threading.Thread.Sleep(1500);
                         break;
 
                     case "3":
-                        duality.VerifyDuality();
+                        duality.VerifyDuality(lpm);
                         Console.WriteLine("\nReturning to Duality Menu...");
                         System.Threading.Thread.Sleep(1500);
                         break;
