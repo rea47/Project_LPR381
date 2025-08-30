@@ -91,10 +91,16 @@ namespace Project_LPR381
             try
             {
                 var parser = new InputFileParser();
-                currentModel = parser.ParseFile(filePath); // Includes validation
+                currentModel = parser.ParseFile(filePath);
+
+                var generator = new OutputFileGenerator();
+                string reportContent = generator.GenerateOutput(currentModel, filePath);
+                outputBuffer.Clear();
+                outputBuffer.Append(reportContent);
 
                 Console.WriteLine("File loaded successfully!");
                 DisplayModelSummary(currentModel);
+
 
                 if (currentModel.ParsingErrors.Any(e => !e.StartsWith("Info:")))
                 {
@@ -113,11 +119,19 @@ namespace Project_LPR381
             }
             catch (FormatException ex)
             {
-                Console.WriteLine($"Format error: {ex.Message}");
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("\n--- PARSING FAILED ---");
+                Console.WriteLine("A number in your input file is incorrectly formatted.");
+                Console.WriteLine("Common causes: using a comma (,) instead of a period (.) for decimals, or accidental letters.");
+                Console.WriteLine($"\nDetailed Error: {ex.Message}");
+                Console.ResetColor();
+
                 outputBuffer.Clear();
-                outputBuffer.AppendLine($"UNEXPECTED ERROR");
-                outputBuffer.AppendLine($"================");
-                outputBuffer.AppendLine($"Error: {ex.Message}");
+                outputBuffer.AppendLine("MODEL PARSING FAILED");
+                outputBuffer.AppendLine("====================");
+                outputBuffer.AppendLine("Reason: A number in the input file could not be read.");
+                outputBuffer.AppendLine("Please check for typos, commas used as decimal separators, or other non-numeric characters.");
+                outputBuffer.AppendLine($"\nDetailed Error: {ex.Message}");
             }
             catch (Exception ex)
             {

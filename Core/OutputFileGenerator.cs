@@ -22,7 +22,10 @@ namespace Project_LPR381.Core
             output.AppendLine("==================");
             output.AppendLine($"Source File: {sourceFile}");
             output.AppendLine($"Parsed on: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            output.AppendLine($"Analysis Duration: {DateTime.Now - model.CreatedAt:F2} seconds");
+
+            // Fix: Convert TimeSpan to total seconds before formatting
+            var duration = DateTime.Now - model.CreatedAt;
+            output.AppendLine($"Analysis Duration: {duration.TotalSeconds:F2} seconds");
             output.AppendLine();
 
             // Model statistics
@@ -50,7 +53,6 @@ namespace Project_LPR381.Core
 
             return output.ToString();
         }
-
         /// Generate model statistics section
         private string GenerateModelStatistics(LinearProgrammingModel model)
         {
