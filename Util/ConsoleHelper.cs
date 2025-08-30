@@ -61,7 +61,7 @@ namespace Project_LPR381.Util
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine($"Current Model: {currentModel.ObjectiveType} with {currentModel.Variables.Count} variables, {currentModel.Constraints.Count} constraints");
-                if (currentModel.HasErrors)
+                if (currentModel.ParsingErrors.Any(e => !e.StartsWith("Info:")))
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine("Warning: Model contains errors - check output for details");

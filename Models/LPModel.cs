@@ -9,6 +9,7 @@ namespace Project_LPR381.Models
     /// Represents the complete linear programming model with comprehensive error tracking
     public class LinearProgrammingModel
     {
+        public bool IsValidated { get; set; } = false;
         public ObjectiveType ObjectiveType { get; set; }
         public double[] ObjectiveCoefficients { get; set; }
         public List<Variable> Variables { get; set; }
@@ -55,7 +56,7 @@ namespace Project_LPR381.Models
         /// Validate if model is ready for solving algorithms
         public bool IsValidForSolving()
         {
-            return !HasErrors &&
+            return !ParsingErrors.Any(e => !e.StartsWith("Info:")) &&
                    Variables.Count > 0 &&
                    Constraints.Count > 0 &&
                    ObjectiveCoefficients.Length == Variables.Count &&

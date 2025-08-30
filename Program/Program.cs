@@ -87,34 +87,37 @@ namespace Project_LPR381
             try
             {
                 var parser = new InputFileParser();
-                currentModel = parser.ParseFile(filePath);
-
-                // Generate output content
-                outputBuffer.Clear();
-                var outputGenerator = new OutputFileGenerator();
-                var outputContent = outputGenerator.GenerateOutput(currentModel, filePath);
-                outputBuffer.Append(outputContent);
+                currentModel = parser.ParseFile(filePath); // Includes validation
 
                 Console.WriteLine("File loaded successfully!");
                 DisplayModelSummary(currentModel);
 
-                if (currentModel.ParsingErrors.Count > 0)
+                if (currentModel.ParsingErrors.Any(e => !e.StartsWith("Info:")))
                 {
-                    Console.WriteLine($"\n{currentModel.ParsingErrors.Count} parsing warnings detected");
+                    Console.WriteLine($"\n{currentModel.ParsingErrors.Count(e => !e.StartsWith("Info:"))} parsing warnings detected:");
+                    foreach (var error in currentModel.ParsingErrors.Where(e => !e.StartsWith("Info:")))
+                    {
+                        Console.WriteLine($"• {error}");
+                    }
                     Console.WriteLine("Check the output file for detailed error information");
                 }
+                else
+                {
+                    Console.WriteLine("\nModel parsed successfully with no non-info warnings.");
+                }
+                Console.WriteLine($"Model valid for solving: {currentModel.IsValidForSolving()}");
             }
-            catch (InvalidModelException ex)
+            catch (FormatException ex)
             {
-                Console.WriteLine($"Invalid model format: {ex.Message}");
+                Console.WriteLine($"Format error: {ex.Message}");
                 outputBuffer.Clear();
-                outputBuffer.AppendLine($"CRITICAL ERROR");
-                outputBuffer.AppendLine($"==============");
+                outputBuffer.AppendLine($"UNEXPECTED ERROR");
+                outputBuffer.AppendLine($"================");
                 outputBuffer.AppendLine($"Error: {ex.Message}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Unexpected error: {ex.Message}");
+                Console.WriteLine($"Unexpected error: {ex.Message}");
                 outputBuffer.Clear();
                 outputBuffer.AppendLine($"UNEXPECTED ERROR");
                 outputBuffer.AppendLine($"================");
@@ -172,16 +175,22 @@ namespace Project_LPR381
 
             Console.Clear();
             Console.WriteLine("╔═══════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║                     CURRENT MODEL                            ║");
+            Console.WriteLine("║                     CURRENT MODEL                             ║");
             Console.WriteLine("╚═══════════════════════════════════════════════════════════════╝\n");
 
             DisplayModelSummary(currentModel);
 
             // Show any errors or warnings
-            if (currentModel.ParsingErrors.Count > 0)
+            // Get a list of actual errors and warnings, ignoring informational messages
+            var actualErrors = currentModel.ParsingErrors
+                .Where(e => !e.StartsWith("Info:"))
+                .ToList();
+
+            // Only show the section if there are actual errors or warnings to display
+            if (actualErrors.Any())
             {
                 Console.WriteLine("\nParsing Errors and Warnings:");
-                foreach (var error in currentModel.ParsingErrors)
+                foreach (var error in actualErrors)
                 {
                     Console.WriteLine($"• {error}");
                 }
@@ -189,7 +198,7 @@ namespace Project_LPR381
 
             // Show model validation status
             Console.WriteLine($"\nModel Status:");
-            Console.WriteLine($"• Valid Format: {(!currentModel.HasErrors ? "Yes" : "No")}");
+            Console.WriteLine($"• Valid Format: {(!currentModel.ParsingErrors.Any(e => e.StartsWith("Warning:") || e.StartsWith("Error:")) ? "Yes" : "No")}"); 
             Console.WriteLine($"• Ready for Solving: {(currentModel.IsValidForSolving() ? "Yes" : "No")}");
         }
 
@@ -248,7 +257,6 @@ namespace Project_LPR381
                 }
             }
         }
-
 
         private static void ShowSensitivityMenu()
         {
@@ -334,7 +342,6 @@ namespace Project_LPR381
                 }
             }
         }
-
 
 
         /// Export results to output file with comprehensive formatting

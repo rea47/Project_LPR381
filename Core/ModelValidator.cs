@@ -13,22 +13,34 @@ namespace Project_LPR381.Core
         /// Validate overall model consistency and detect potential issues
         public void ValidateModel(LinearProgrammingModel model)
         {
-            try
             {
-                if (model.Variables.Count == 0)
-                    throw new InvalidModelException("Model contains no variables");
+                if (model.IsValidated) return; // Skip if already validated
+                model.IsValidated = true;
+                // ... existing code
 
-                if (model.Constraints.Count == 0)
-                    model.ParsingErrors.Add("Warning: Model contains no constraints - problem may be unbounded");
+                Console.WriteLine("Starting model validation...");
+                try
+                {
+                    if (model.Variables.Count == 0)
+                        throw new InvalidModelException("Model contains no variables");
 
-                ValidateConstraintDimensions(model);
-                DetectPotentialInfeasibility(model);
-                DetectPotentialUnboundedness(model);
-                AnalyzeConstraintMatrix(model);
-            }
-            catch (Exception ex) when (!(ex is InvalidModelException))
-            {
-                model.ParsingErrors.Add($"Error during model validation: {ex.Message}");
+                    if (model.Constraints.Count == 0)
+                        model.ParsingErrors.Add("Warning: Model contains no constraints - problem may be unbounded");
+
+                    Console.WriteLine("Validating constraint dimensions...");
+                    ValidateConstraintDimensions(model);
+                    Console.WriteLine("Detecting potential infeasibility...");
+                    DetectPotentialInfeasibility(model);
+                    Console.WriteLine("Detecting potential unboundedness...");
+                    DetectPotentialUnboundedness(model);
+                    Console.WriteLine("Analyzing constraint matrix...");
+                    AnalyzeConstraintMatrix(model);
+                }
+                catch (Exception ex) when (!(ex is InvalidModelException))
+                {
+                    model.ParsingErrors.Add($"Error during model validation: {ex.Message}");
+                }
+                Console.WriteLine($"Validation complete. ParsingErrors: {model.ParsingErrors.Count}");
             }
         }
 
@@ -96,6 +108,7 @@ namespace Project_LPR381.Core
             {
                 double objCoeff = model.ObjectiveCoefficients[varIndex];
                 if (Math.Abs(objCoeff) < EPSILON) continue;
+                if (model.SignRestrictions[varIndex] == SignRestriction.Binary) continue; // Skip binary variables
 
                 bool hasLimitingConstraint = model.Constraints.Any(constraint =>
                 {
@@ -106,7 +119,6 @@ namespace Project_LPR381.Core
                         return (c > 0 && constraint.Relation == "<=") || (c < 0 && constraint.Relation == ">=");
                     if (model.ObjectiveType == ObjectiveType.Minimize && objCoeff < 0)
                         return (c > 0 && constraint.Relation == "<=") || (c < 0 && constraint.Relation == ">=");
-
                     return false;
                 });
 
@@ -136,6 +148,7 @@ namespace Project_LPR381.Core
             else if (m < n)
                 model.ParsingErrors.Add($"Info: More variables ({n}) than constraints ({m}) - system likely under-constrained");
         }
+
 
         /// Check zero rows & columns
         private void CheckZeroRowsAndColumns(LinearProgrammingModel model, int m, int n)

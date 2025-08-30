@@ -1,6 +1,8 @@
 ﻿using Project_LPR381.Models;
+using Project_LPR381.Core;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -80,7 +82,7 @@ namespace Project_LPR381.Core
                 // Objective function
                 output.Append($"{model.ObjectiveType.ToString().ToUpper()} z = ");
                 var objTerms = model.ObjectiveCoefficients.Select((c, i) =>
-                    $"{(c >= 0 && i > 0 ? "+" : "")}{c:F6}x{i + 1}");
+                    $"{(c >= 0 && i > 0 ? "+" : "")}{c.ToString("F6", CultureInfo.InvariantCulture)}x{i + 1}");
                 output.AppendLine(string.Join(" ", objTerms));
 
                 output.AppendLine("\nSubject to:");
@@ -90,8 +92,8 @@ namespace Project_LPR381.Core
                 {
                     var constraint = model.Constraints[i];
                     var terms = constraint.Coefficients.Select((c, j) =>
-                        $"{(c >= 0 && j > 0 ? "+" : "")}{c:F6}x{j + 1}");
-                    output.AppendLine($"  {string.Join(" ", terms)} {constraint.Relation} {constraint.RightHandSide:F6}");
+                        $"{(c >= 0 && j > 0 ? "+" : "")}{c.ToString("F6", CultureInfo.InvariantCulture)}x{j + 1}");
+                    output.AppendLine($"  {string.Join(" ", terms)} {constraint.Relation} {constraint.RightHandSide.ToString("F6", CultureInfo.InvariantCulture)}");
                 }
 
                 // Sign restrictions

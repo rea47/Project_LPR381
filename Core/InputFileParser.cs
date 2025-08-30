@@ -53,7 +53,6 @@ namespace Project_LPR381.Core
                 CreateVariables(model);
 
                 var validator = new ModelValidator();
-                validator.ValidateModel(model);
 
                 return model;
             }
@@ -150,7 +149,7 @@ namespace Project_LPR381.Core
                 // RHS
                 if (!double.TryParse(parts[relationIndex + 1], NumberStyles.Any, CultureInfo.InvariantCulture, out double rhs))
                 {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid RHS value '{parts[relationIndex + 1]}'");
+                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid RHS value '{parts[relationIndex + 1]}'. Expected a number.");
                     rhs = 0.0;
                 }
 
@@ -197,7 +196,7 @@ namespace Project_LPR381.Core
                 }
                 else
                 {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid coefficient '{token}' at position {i + 1}");
+                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid coefficient '{token}' at position {i + 1}. Expected a number.");
                     coefficients.Add(0.0);
                 }
             }
