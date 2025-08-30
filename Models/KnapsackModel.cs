@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Project_LPR31.Models
+namespace Project_LPR381.Models
 {
     public sealed class KnapsackModel
     {

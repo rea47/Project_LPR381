@@ -171,8 +171,7 @@ namespace Project_LPR381.Algorithms
                 origVarCol = Enumerable.Range(0, n0).ToArray()
             };
 
-            // local helpers
-            static void AddNewColumn(List<double[]> cols, int currentRow, double valAtRow, out int idx)
+            void AddNewColumn(List<double[]> cols, int currentRow, double valAtRow, out int idx)
             {
                 idx = cols.Count;
                 int r = currentRow + 1; // number of rows after we add this one
@@ -181,16 +180,19 @@ namespace Project_LPR381.Algorithms
                 col[r - 1] = valAtRow;
                 cols.Add(col);
             }
-            static double[] ExtendRow(double[] row, List<double[]> cols)
+
+            // This static helper method has been corrected for clarity and safety
+            double[] ExtendRow(double[] row, List<double[]> cols)
             {
                 int n = row.Length;
-                int add = cols.Count - (n - row.Length);
-                var newRow = new double[cols[0].Length + (n)];
-                // rebuild by reading each column vector at this row
                 int totalCols = n + cols.Count;
                 var r = new double[totalCols];
-                for (int j = 0; j < n; j++) r[j] = row[j];
-                for (int j = 0; j < cols.Count; j++) r[n + j] = cols[j][cols[j].Length - 1];
+                Array.Copy(row, r, n); // Copy original variables
+                for (int j = 0; j < cols.Count; j++)
+                {
+                    // The value for the current row is the last element in that column vector
+                    r[n + j] = cols[j][cols[j].Length - 1];
+                }
                 return r;
             }
         }
@@ -254,7 +256,7 @@ namespace Project_LPR381.Algorithms
                 origVarCol = K.origVarCol
             };
 
-            static int FindUnitColumn(double[,] A, int row)
+            int FindUnitColumn(double[,] A, int row)
             {
                 int m = A.GetLength(0);
                 int n = A.GetLength(1);

@@ -14,8 +14,7 @@ namespace Project_LPR381.Algorithms
 
         private sealed class Node
         {
-            public List<(int varIdx, double? lb, double? ub)> Bounds = new();
-            public int Depth;
+            public List<(int varIdx, double? lb, double? ub)> Bounds = new List<(int varIdx, double? lb, double? ub)>(); public int Depth;
         }
 
         public sealed class Result

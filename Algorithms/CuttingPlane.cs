@@ -3,11 +3,11 @@ using Project_LPR381.Util;
 using System;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks
+using System.Threading.Tasks;
 
 namespace Project_LPR381.Algorithms
 {
-    public sealed class CuttingPlane
+    public sealed class CuttingPlaneS
     {
         private const double EPS = 1e-6;
 
@@ -76,7 +76,7 @@ namespace Project_LPR381.Algorithms
                 log.Note($"Added Gomory cut #{cuts}: sum(frac(a_j)) x_j >= {IterationLog.R3(rhs)}");
             }
 
-            static double FracPart(double x) { double f = x - Math.Floor(x); if (f < 1e-9) f = 0; return f; }
+            double FracPart(double x) { double f = x - Math.Floor(x); if (f < 1e-9) f = 0; return f; }
         }
     }
 }
