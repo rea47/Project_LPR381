@@ -51,10 +51,6 @@ namespace Project_LPR381.Core
 
                 CreateVariables(model);
 
-                // (Validation is disabled as per previous request, but can be re-enabled here)
-                // var validator = new ModelValidator();
-                // validator.ValidateModel(model);
-
                 return model;
             }
             catch (InvalidModelException)
@@ -77,8 +73,6 @@ namespace Project_LPR381.Core
 
             string objectiveTypeStr = parts[0].ToUpper().Trim();
 
-            // --- THIS IS THE CORRECTED CODE BLOCK ---
-            // Using a classic switch statement for maximum compatibility.
             switch (objectiveTypeStr)
             {
                 case "MAX":
@@ -137,8 +131,6 @@ namespace Project_LPR381.Core
             var coefficients = new List<double>();
             foreach (var token in tokens)
             {
-                Console.WriteLine($"DEBUG: Parsing token '{token}' on line {lineNumber}"); // Add this line
-
                 string numericPart = token;
 
                 if (token.Contains('x'))
@@ -158,7 +150,6 @@ namespace Project_LPR381.Core
                 }
                 else
                 {
-                    Console.WriteLine($"DEBUG: Failed to parse '{numericPart}' from original token '{token}'"); // Add this line
                     throw new InvalidModelException($"Could not parse coefficient '{token}' on line {lineNumber}.", lineNumber);
                 }
             }
@@ -177,8 +168,6 @@ namespace Project_LPR381.Core
                 // Clean the input token to handle variations
                 string trimmedPart = new string(part.ToLower().Trim().Where(char.IsLetterOrDigit).ToArray());
                 SignRestriction restriction;
-
-                Console.WriteLine($"DEBUG: Parsing sign restriction '{part}' -> '{trimmedPart}' on line {lineNumber}"); // Debug line
 
                 // Using a classic switch statement for maximum compatibility.
                 switch (trimmedPart)
@@ -206,11 +195,9 @@ namespace Project_LPR381.Core
                         break;
                     default:
                         // If no match is found, throw a detailed error.
-                        Console.WriteLine($"DEBUG: Failed to match sign restriction '{trimmedPart}'"); // Debug line
                         throw new InvalidModelException($"Invalid sign restriction '{part}' (processed as '{trimmedPart}').", lineNumber);
                 }
                 model.SignRestrictions.Add(restriction);
-                Console.WriteLine($"DEBUG: Successfully added restriction: {restriction}"); // Debug line
             }
         }
         private void CreateVariables(LinearProgrammingModel model)
