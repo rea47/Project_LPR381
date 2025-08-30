@@ -47,11 +47,12 @@ namespace Project_LPR381.Util
 
             Console.WriteLine("║  [1] Load Input File                                          ║");
             Console.WriteLine("║  [2] View Current Model                                       ║");
-            Console.WriteLine("║  [3] Duality Analysis                                         ║");
-            Console.WriteLine("║  [4] Sensitivity Analysis                                     ║");
-            Console.WriteLine("║  [5] Export Results to File                                   ║");
-            Console.WriteLine("║  [6] About                                                    ║");
-            Console.WriteLine("║  [7] Quit                                                     ║");
+            Console.WriteLine("║  [3] Solve with Algorithm                                     ║");
+            Console.WriteLine("║  [4] Duality Analysis                                         ║");
+            Console.WriteLine("║  [5] Sensitivity Analysis                                     ║");
+            Console.WriteLine("║  [6] Export Results to File                                   ║");
+            Console.WriteLine("║  [7] About                                                    ║");
+            Console.WriteLine("║  [8] Quit                                                     ║");
 
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("╚═══════════════════════════════════════════════════════════════╝");
@@ -72,9 +73,28 @@ namespace Project_LPR381.Util
             Console.Write("\nPlease select an option: ");
         }
 
-        /// <summary>
+        /// Displays the menu for selecting a solving algorithm.
+        public static void ShowAlgorithmsMenu()
+        {
+            Console.Clear();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("╔═══════════════════════════════════════════════════════════════╗");
+            Console.WriteLine("║                   SOLVE WITH ALGORITHM                        ║");
+            Console.WriteLine("╠═══════════════════════════════════════════════════════════════╣");
+            Console.ResetColor();
+            Console.WriteLine("║  [1] Primal Simplex                                           ║");
+            Console.WriteLine("║  [2] Revised Simplex                                          ║");
+            Console.WriteLine("║  [3] Cutting Plane                                            ║");
+            Console.WriteLine("║  [4] Branch and Bound (using Simplex)                         ║");
+            Console.WriteLine("║  [5] Branch and Bound (for Knapsack Problem)                  ║");
+            Console.WriteLine("║  [6] Back to Main Menu                                        ║");
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("╚═══════════════════════════════════════════════════════════════╝");
+            Console.ResetColor();
+            Console.Write("\nPlease select an algorithm: ");
+        }
+
         /// Show about information
-        /// </summary>
         public static void ShowAbout()
         {
             Console.Clear();

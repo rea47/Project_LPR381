@@ -1,6 +1,7 @@
-﻿using Project_LPR381.Core;
+﻿using Project_LPR381;
+using Project_LPR381.Algorithms;
+using Project_LPR381.Core;
 using Project_LPR381.Exceptions;
-using Project_LPR381;
 using Project_LPR381.Models;
 using Project_LPR381.Util;
 using System;
@@ -35,19 +36,22 @@ namespace Project_LPR381
                     case "2":
                         ViewCurrentModel();
                         break;
-                    case "3":
-                        ShowDualityMenu();
+                    case "3": 
+                        ShowAlgorithmsMenu();
                         break;
                     case "4":
-                        ShowSensitivityMenu();
+                        ShowDualityMenu();
                         break;
                     case "5":
-                        ExportResults();
+                        ShowSensitivityMenu();
                         break;
                     case "6":
-                        ConsoleHelper.ShowAbout();
+                        ExportResults();
                         break;
                     case "7":
+                        ConsoleHelper.ShowAbout();
+                        break;
+                    case "8":
                         Environment.Exit(0);
                         break;
                     default:
@@ -122,6 +126,72 @@ namespace Project_LPR381
                 outputBuffer.AppendLine($"UNEXPECTED ERROR");
                 outputBuffer.AppendLine($"================");
                 outputBuffer.AppendLine($"Error: {ex.Message}");
+            }
+        }
+
+        /// Displays the sub-menu for algorithms and handles user selection.
+        private static void ShowAlgorithmsMenu()
+        {
+            if (currentModel == null)
+            {
+                Console.WriteLine("No model loaded. Please load a model first.");
+                return;
+            }
+
+            bool back = false;
+            while (!back)
+            {
+                ConsoleHelper.ShowAlgorithmsMenu();
+                string choice = Console.ReadLine();
+                var log = new IterationLog();
+
+                switch (choice)
+                {
+                    case "1":
+                        var primalSimplex = new PrimalSimplex();
+                        primalSimplex.Solve(currentModel, log);
+                        break;
+                    case "2":
+                        var revisedSimplex = new RevisedSimplex();
+                        revisedSimplex.Solve(currentModel, log);
+                        break;
+                    case "3":
+                        var cuttingPlane = new CuttingPlaneS();
+                        cuttingPlane.Solve(currentModel, log);
+                        break;
+                    case "4":
+                        var bbSimplex = new BranchAndBoundSimplex();
+                        bbSimplex.Solve(currentModel, log);
+                        break;
+                    case "5":
+                        // Knapsack requires a different model type, so we'll run a demo.
+                        var knapsackSolver = new BranchAndBoundKnapsack();
+                        var knapsackModel = new KnapsackModel
+                        {
+                            Values = new double[] { 10, 40, 30, 50 },
+                            Weights = new double[] { 5, 4, 6, 3 },
+                            Capacity = 10
+                        };
+
+                        // Ensure Solve matches the correct signature
+                        knapsackSolver.Solve(knapsackModel, log);
+
+                        break;
+
+                    case "6":
+                        back = true;
+                        break;
+                    default:
+                        Console.WriteLine("Invalid choice. Please try again.");
+                        Console.ReadKey();
+                        break;
+                }
+
+                if (!back)
+                {
+                    Console.WriteLine("\nPress any key to return to the algorithms menu...");
+                    Console.ReadKey();
+                }
             }
         }
 
@@ -359,11 +429,11 @@ namespace Project_LPR381
             if (string.IsNullOrEmpty(filePath))
                 filePath = outputFilePath;
 
+            // Simple file writing, assuming FileHelper exists
             try
             {
-                FileHelper.WriteToFile(filePath, outputBuffer.ToString());
+                System.IO.File.WriteAllText(filePath, outputBuffer.ToString());
                 Console.WriteLine($"Results exported to {filePath}");
-                Console.WriteLine($"File size: {FileHelper.GetFileSize(filePath)} bytes");
             }
             catch (Exception ex)
             {
