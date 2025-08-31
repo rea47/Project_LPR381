@@ -3,18 +3,20 @@ using Project_LPR381.Util;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Project_LPR381.Algorithms
 {
+    /// Branch & Bound using primal simplex at each node.
+    /// Variable selection: integer/bin variable whose current value is fractional and CLOSEST TO 0.5 (tie → lower index).
+    /// Logs active bounds under every tableau.
     public sealed class BranchAndBoundSimplex
     {
         private const double EPS = 1e-6;
 
         private sealed class Node
         {
-            public List<(int varIdx, double? lb, double? ub)> Bounds = new List<(int varIdx, double? lb, double? ub)>(); public int Depth;
+            public List<(int varIdx, double? lb, double? ub)> Bounds = new List<(int varIdx, double? lb, double? ub)>();
+            public int Depth;
         }
 
         public sealed class Result
@@ -30,6 +32,7 @@ namespace Project_LPR381.Algorithms
 
             var stack = new Stack<Node>();
             stack.Push(new Node { Depth = 0 });
+
             double best = double.NegativeInfinity;
             double[] bestX = null;
 
@@ -38,12 +41,21 @@ namespace Project_LPR381.Algorithms
                 var node = stack.Pop();
                 var model = CloneWithBounds(baseModel, node.Bounds);
 
-                log.Note($"Node depth={node.Depth}, bounds: " +
-                         (node.Bounds.Count == 0 ? "(none)" :
-                          string.Join(", ", node.Bounds.Select(b => $"x{b.varIdx + 1}{(b.lb.HasValue ? $">={b.lb}" : "")}{(b.ub.HasValue ? $"<={b.ub}" : "")}"))));
+                // Show active bounds under each simplex tableau
+                var footer = node.Bounds.Count == 0
+                    ? new[] { $"Node depth: {node.Depth}  |  Active bounds: (none)" }
+                    : new[] { $"Node depth: {node.Depth}",
+                              "Active bounds: " + string.Join(", ", node.Bounds.Select(b =>
+                                  $"x{b.varIdx + 1}" +
+                                  (b.lb.HasValue ? $" ≥ {IterationLog.R3(b.lb.Value)}" : "") +
+                                  (b.ub.HasValue ? $" ≤ {IterationLog.R3(b.ub.Value)}" : "")
+                              )) };
+                log.SetFooter(footer);
 
                 var simplex = new PrimalSimplex();
                 var res = simplex.Solve(model, log);
+                log.ClearFooter();
+
                 if (res.IsInfeasible)
                 {
                     log.Note("Fathom: infeasible");
@@ -62,19 +74,25 @@ namespace Project_LPR381.Algorithms
                     continue;
                 }
 
-                // Check integrality
+                // integer/bin indices
                 var intIdx = baseModel.SignRestrictions
                     .Select((s, i) => (s, i))
                     .Where(t => t.s == SignRestriction.Integer || t.s == SignRestriction.Binary)
                     .Select(t => t.i)
                     .ToArray();
 
-                int branchVar = -1; double frac = 0;
+                // choose var closest to 0.5 among fractional ones
+                int branchVar = -1; double bestDist = double.PositiveInfinity;
                 foreach (var k in intIdx)
                 {
                     double v = res.X[k];
-                    double f = Math.Abs(v - Math.Round(v));
-                    if (f > 1e-6 && f > frac) { frac = f; branchVar = k; }
+                    double frac = Math.Abs(v - Math.Round(v));
+                    if (frac < 1e-9) continue;
+                    double d = Math.Abs(v - 0.5);
+                    if (d < bestDist - 1e-12 || (Math.Abs(d - bestDist) <= 1e-12 && k < branchVar))
+                    {
+                        bestDist = d; branchVar = k;
+                    }
                 }
 
                 if (branchVar == -1)
@@ -85,20 +103,20 @@ namespace Project_LPR381.Algorithms
                     continue;
                 }
 
-                // Branch
                 double val = res.X[branchVar];
                 double floor = Math.Floor(val);
                 double ceil = Math.Ceiling(val);
+                log.Note($"Branch on x{branchVar + 1}: x{branchVar + 1} ≤ {floor}  OR  x{branchVar + 1} ≥ {ceil}  (value = {IterationLog.R3(val)})");
 
                 var left = new Node { Depth = node.Depth + 1 };
                 left.Bounds.AddRange(node.Bounds);
-                left.Bounds.Add((branchVar, null, floor)); // x_k <= floor
+                left.Bounds.Add((branchVar, null, floor));
 
                 var right = new Node { Depth = node.Depth + 1 };
                 right.Bounds.AddRange(node.Bounds);
-                right.Bounds.Add((branchVar, ceil, null));  // x_k >= ceil
+                right.Bounds.Add((branchVar, ceil, null));
 
-                // DFS push order: try upper bound branch second
+                // DFS
                 stack.Push(right);
                 stack.Push(left);
             }
@@ -106,9 +124,8 @@ namespace Project_LPR381.Algorithms
             return new Result { Feasible = bestX != null, BestValue = best, BestX = bestX };
         }
 
-        private LinearProgrammingModel CloneWithBounds(LinearProgrammingModel m, List<(int varIdx, double? lb, double? ub)> bounds)
+        private static LinearProgrammingModel CloneWithBounds(LinearProgrammingModel m, List<(int varIdx, double? lb, double? ub)> bounds)
         {
-            // Shallow copy of base model plus new constraints for bounds.
             var cp = new LinearProgrammingModel
             {
                 ObjectiveType = m.ObjectiveType,
@@ -124,10 +141,8 @@ namespace Project_LPR381.Algorithms
             {
                 var coeff = new double[m.Variables.Count];
                 coeff[b.varIdx] = 1.0;
-                if (b.lb.HasValue)
-                    cp.Constraints.Add(new Constraint(coeff, ">=", b.lb.Value));
-                if (b.ub.HasValue)
-                    cp.Constraints.Add(new Constraint(coeff, "<=", b.ub.Value));
+                if (b.lb.HasValue) cp.Constraints.Add(new Constraint(coeff, ">=", b.lb.Value));
+                if (b.ub.HasValue) cp.Constraints.Add(new Constraint(coeff, "<=", b.ub.Value));
             }
             return cp;
         }

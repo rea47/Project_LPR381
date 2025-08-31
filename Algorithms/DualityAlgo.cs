@@ -11,9 +11,7 @@ namespace Project_LPR31.Algorithms
 {
     public class DualityAlgo
     {
-        /// <summary>
         /// Print a basic duality analysis of the given model --done
-        /// </summary>
         /// 
         public void ApplyDuality(LinearProgrammingModel lpm)
         {
@@ -48,80 +46,48 @@ namespace Project_LPR31.Algorithms
             Console.ReadKey();
         }
 
-        /// <summary>
         /// Placeholder: Solve the dual model -- Done
-        /// </summary>
-        /// 
 
         public LinearProgrammingModel BuildDualModel(LinearProgrammingModel lpm)
         {
             var dual = new LinearProgrammingModel();
 
-            dual.ObjectiveType = lpm.ObjectiveType == ObjectiveType.Maximize
-                ? ObjectiveType.Minimize
-                : ObjectiveType.Maximize;
+            dual.ObjectiveType = lpm.ObjectiveType == ObjectiveType.Maximize ? ObjectiveType.Minimize : ObjectiveType.Maximize; //max -> min OR min -> max
 
-            // Dual objective coefficients = primal RHS
-            dual.ObjectiveCoefficients = lpm.Constraints.Select(c => c.RightHandSide).ToArray();
+            dual.ObjectiveCoefficients = lpm.Constraints.Select(c => c.RightHandSide).ToArray(); //checking if the coefficients of the constraints are equal to the right hand side
 
-            // Initialize dual variables list
-            dual.Variables = new List<Variable>();
-            // Initialize dual constraints list
-            dual.Constraints = new List<Constraint>();
+            dual.Variables = new List<Variable>(); //converting the constraints to variables
             for (int j = 0; j < lpm.Constraints.Count; j++)
             {
-                var pconst = lpm.Constraints[j];
+                var pconst= lpm.Constraints[j];
                 SignRestriction sr;
-                switch (pconst.ConstraintType)
+                switch(pconst.ConstraintType)
                 {
                     case ConstraintRelation.LessOrEqual:
-                        sr = (lpm.ObjectiveType == ObjectiveType.Maximize)
-                            ? SignRestriction.NonNegative
-                            : SignRestriction.NonPositive;
-                        string name = $"y{j + 1}";
-                        dual.Variables.Add(new Variable(name, sr, j));
+                        sr = lpm.ObjectiveType == ObjectiveType.Maximize ? SignRestriction.NonNegative : SignRestriction.NonPositive;
                         break;
                     case ConstraintRelation.GreaterOrEqual:
-                        sr = (lpm.ObjectiveType == ObjectiveType.Maximize)
-                            ? SignRestriction.NonPositive
-                            : SignRestriction.NonNegative;
-                        string name1 = $"y{j + 1}";
-                        dual.Variables.Add(new Variable(name1, sr, j));
+                        sr = lpm.ObjectiveType == ObjectiveType.Maximize ? SignRestriction.NonPositive : SignRestriction.NonNegative;
                         break;
                     case ConstraintRelation.Equal:
                         sr = SignRestriction.Unrestricted;
-                        string name2 = $"y{j + 1}";
-                        dual.Variables.Add(new Variable(name2, sr, j));
                         break;
                     default:
                         sr = SignRestriction.Unrestricted;
-                        string namedef = $"y{j + 1}";
-                        dual.Variables.Add(new Variable(namedef, sr, j));
                         break;
                 }
-
+                string name=$"y{j+1}";
+                dual.Variables.Add(new Variable(name,sr,j));
             }
-            //code confirmed to work up untill here
-
-
-            Console.WriteLine("Primal variable count: " + lpm.Variables.Count);
-            // Each primal variable becomes a dual constraint
+            dual.Constraints = new List<Constraint>(); //converting the variables to constraints
             for (int i = 0; i < lpm.Variables.Count; i++)
             {
-                Console.WriteLine("wwwwwwwww");
-                double[] coeffs = new double[lpm.Constraints.Count];
+                var coeffs = new double[lpm.Constraints.Count];
 
                 for (int j = 0; j < lpm.Constraints.Count; j++)
-                {
-                    Console.WriteLine("xxxxxxxxx");
                     coeffs[j] = lpm.Constraints[j].Coefficients[i];
-                }
 
-                // Determine sign of dual constraint
-                string sign = lpm.Variables[i].SignRestriction == SignRestriction.NonNegative ? "<=" :
-                       lpm.Variables[i].SignRestriction == SignRestriction.NonPositive ? ">=" : "=";
-
-                dual.Constraints.Add(new Constraint(coeffs, sign, lpm.ObjectiveCoefficients[i]));
+                dual.Constraints.Add(new Constraint(coeffs, "", lpm.ObjectiveCoefficients[i]));
             }
 
             return dual;
@@ -143,9 +109,7 @@ namespace Project_LPR31.Algorithms
             Console.ReadLine();
         }
 
-        /// <summary>
         /// Placeholder: Verify strong/weak duality conditions  --Done
-        /// </summary>
         public void VerifyDuality(LinearProgrammingModel lpm)
         {
             IterationLog il = new IterationLog();

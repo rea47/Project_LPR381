@@ -8,11 +8,11 @@ using System.Globalization;
 
 namespace Project_LPR381.Core
 {
-    /// Comprehensive input file parser for linear programming models
-    /// Handles random numbers of variables and constraints with robust error detection
+    /// Comprehensive input file parser for linear programming models.
     public class InputFileParser
     {
         private const double EPSILON = 1e-10;
+
         public LinearProgrammingModel ParseFile(string filePath)
         {
             if (string.IsNullOrEmpty(filePath))
@@ -21,266 +21,223 @@ namespace Project_LPR381.Core
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"Input file not found: {filePath}");
 
+            var allLines = File.ReadAllLines(filePath);
+            var lines = allLines
+                .Select((line, index) => new { Text = line.Trim(), Number = index + 1 })
+                .Where(item => !string.IsNullOrWhiteSpace(item.Text))
+                .ToArray();
+
+            if (lines.Length < 3)
+            {
+                throw new InvalidModelException(
+                    $"Invalid file format: Expected at least 3 non-empty lines, but found {lines.Length}.");
+            }
+
+            var model = new LinearProgrammingModel { SourceFile = filePath };
+
             try
             {
-                var allLines = File.ReadAllLines(filePath);
-                var lines = allLines
-                    .Select((line, index) => new { Line = line.Trim(), Index = index + 1 })
-                    .Where(item => !string.IsNullOrWhiteSpace(item.Line))
-                    .ToArray();
+                // Parse objective function (Line 1)
+                ParseObjectiveFunction(lines[0].Text, lines[0].Number, model);
 
-                if (lines.Length < 3)
-                {
-                    throw new InvalidModelException(
-                        $"Invalid file format: Expected at least 3 non-empty lines (objective, constraints, sign restrictions), found {lines.Length}");
-                }
-
-                var model = new LinearProgrammingModel { SourceFile = filePath };
-
-                // Parse objective function
-                ParseObjectiveFunction(lines[0].Line, lines[0].Index, model);
-
-                // Parse constraints
+                // Parse constraints (Middle lines)
                 for (int i = 1; i < lines.Length - 1; i++)
                 {
-                    ParseConstraint(lines[i].Line, lines[i].Index, model, i);
+                    ParseConstraint(lines[i].Text, lines[i].Number, model);
                 }
 
-                // Parse sign restrictions
-                ParseSignRestrictions(lines[lines.Length - 1].Line, lines[lines.Length - 1].Index, model);
+                // Parse sign restrictions (Last line)
+                ParseSignRestrictions(lines[lines.Length - 1].Text, lines[lines.Length - 1].Number, model);
 
-                // Create variables and validate
                 CreateVariables(model);
-
-                var validator = new ModelValidator();
 
                 return model;
             }
-            catch (IOException ex)
+            catch (InvalidModelException)
             {
-                throw new InvalidModelException($"Error reading file: {ex.Message}", ex);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                throw new InvalidModelException($"Access denied to file: {ex.Message}", ex);
-            }
-        }
-
-        /// Parse objective function
-        private void ParseObjectiveFunction(string line, int lineNumber, LinearProgrammingModel model)
-        {
-            try
-            {
-                var parts = line.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-
-                if (parts.Length < 2)
-                    throw new InvalidModelException($"Line {lineNumber}: Invalid objective function format.");
-
-                // Parse objective type
-                string objectiveTypeStr = parts[0].ToUpper().Trim();
-                switch (objectiveTypeStr)
-                {
-                    case "MAX":
-                    case "MAXIMIZE":
-                        model.ObjectiveType = ObjectiveType.Maximize;
-                        break;
-                    case "MIN":
-                    case "MINIMIZE":
-                        model.ObjectiveType = ObjectiveType.Minimize;
-                        break;
-                    default:
-                        model.ParsingErrors.Add($"Line {lineNumber}: Invalid objective type '{parts[0]}'");
-                        model.ObjectiveType = ObjectiveType.Maximize;
-                        break;
-                }
-
-                // Parse coefficients
-                var coefficients = ParseCoefficients(parts.Skip(1).ToArray(), lineNumber, model);
-                model.ObjectiveCoefficients = coefficients;
-
-                int zeroCount = coefficients.Count(c => Math.Abs(c) < EPSILON);
-                if (zeroCount > 0)
-                    model.ParsingErrors.Add($"Line {lineNumber}: Warning - {zeroCount} zero coefficient(s) found in objective function");
-            }
-            catch (Exception ex) when (!(ex is InvalidModelException))
-            {
-                throw new InvalidModelException($"Line {lineNumber}: Error parsing objective function - {ex.Message}", ex);
-            }
-        }
-
-        /// Parse constraint
-        private void ParseConstraint(string line, int lineNumber, LinearProgrammingModel model, int constraintIndex)
-        {
-            try
-            {
-                var parts = line.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-
-                if (parts.Length < 3)
-                {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid constraint format.");
-                    return;
-                }
-
-                // Find relation
-                int relationIndex = -1;
-                string relation = null;
-                var validRelations = new[] { "<=", ">=", "=" };
-
-                for (int i = 0; i < parts.Length; i++)
-                {
-                    if (validRelations.Contains(parts[i]))
-                    {
-                        relationIndex = i;
-                        relation = parts[i];
-                        break;
-                    }
-                }
-
-                if (relationIndex == -1)
-                {
-                    model.ParsingErrors.Add($"Line {lineNumber}: No valid relation found.");
-                    return;
-                }
-
-                // Parse coefficients
-                var coeffTokens = parts.Take(relationIndex).ToArray();
-                var coefficients = ParseCoefficients(coeffTokens, lineNumber, model);
-
-                // RHS
-                if (!double.TryParse(parts[relationIndex + 1], NumberStyles.Any, CultureInfo.InvariantCulture, out double rhs))
-                {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid RHS value '{parts[relationIndex + 1]}'. Expected a number.");
-                    rhs = 0.0;
-                }
-
-                var constraint = new Constraint(coefficients, relation, rhs);
-                model.Constraints.Add(constraint);
-
-                if (coefficients.All(c => Math.Abs(c) < EPSILON))
-                {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Warning - All coefficients are zero in constraint {constraintIndex}");
-                }
+                // Re-throw our custom exceptions so the main program can display them
+                throw;
             }
             catch (Exception ex)
             {
-                model.ParsingErrors.Add($"Line {lineNumber}: Unexpected error parsing constraint - {ex.Message}");
+                // Catch any other unexpected errors during parsing
+                throw new InvalidModelException($"An unexpected error occurred during parsing: {ex.Message}", ex);
             }
         }
 
-        /// General coefficient parser supporting both formats
-        private double[] ParseCoefficients(string[] tokens, int lineNumber, LinearProgrammingModel model)
+        private void ParseObjectiveFunction(string line, int lineNumber, LinearProgrammingModel model)
+        {
+            var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2)
+                throw new InvalidModelException($"Invalid objective function format.", lineNumber, "ParseError");
+
+            string objectiveTypeStr = parts[0].ToUpper().Trim();
+
+            switch (objectiveTypeStr)
+            {
+                case "MAX":
+                case "MAXIMIZE":
+                    model.ObjectiveType = ObjectiveType.Maximize;
+                    break;
+
+                case "MIN":
+                case "MINIMIZE":
+                    model.ObjectiveType = ObjectiveType.Minimize;
+                    break;
+
+                default:
+                    // If the objective type is not recognized, throw a specific error.
+                    throw new InvalidModelException($"Invalid objective type '{parts[0]}'. Expected MAX or MIN.", lineNumber, "ParseError");
+            }
+            model.ObjectiveCoefficients = ParseCoefficients(parts.Skip(1).ToArray(), lineNumber);
+        }
+        private void ParseConstraint(string line, int lineNumber, LinearProgrammingModel model)
+        {
+            var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 3)
+                throw new InvalidModelException("Invalid constraint format. Expected coefficients, a relation (<=, >=, =), and a RHS value.", lineNumber);
+
+            var validRelations = new[] { "<=", ">=", "=" };
+            int relationIndex = Array.FindIndex(parts, validRelations.Contains);
+
+            if (relationIndex == -1)
+                throw new InvalidModelException("No valid relation (<=, >=, =) found in constraint.", lineNumber);
+
+            if (relationIndex == 0 || relationIndex == parts.Length - 1)
+                throw new InvalidModelException("Constraint relation must be between coefficients and the RHS value.", lineNumber);
+
+            var coeffTokens = parts.Take(relationIndex).ToArray();
+            var coefficients = ParseCoefficients(coeffTokens, lineNumber);
+
+            string rhsToken = parts[relationIndex + 1];
+            if (!double.TryParse(rhsToken, NumberStyles.Any, CultureInfo.InvariantCulture, out double rhs))
+            {
+                throw new InvalidModelException($"Could not parse the Right-Hand Side value '{rhsToken}' as a number.", lineNumber);
+            }
+
+            var constraint = new Constraint(coefficients, parts[relationIndex], rhs);
+            model.Constraints.Add(constraint);
+        }
+
+        private static readonly HashSet<string> RestrictionKeywords = new HashSet<string>
+        {
+            "int", "integer", "nonneg", "nonnegative",
+            "nonpos", "nonpositive", "urs", "free", "unrestricted",
+            "bin", "binary"
+        };
+
+        private double[] ParseCoefficients(string[] tokens, int lineNumber)
         {
             var coefficients = new List<double>();
-
-            for (int i = 0; i < tokens.Length; i++)
+            foreach (var token in tokens)
             {
-                string token = tokens[i].Trim();
-                double coeff = 0.0;
+                string numericPart = token;
 
-                // Case A: token like "2x1"
-                if (token.Contains("x"))
+                if (token.Contains('x'))
                 {
-                    var split = token.Split('x');
-                    if (split.Length == 2 &&
-                        double.TryParse(split[0], NumberStyles.Any, CultureInfo.InvariantCulture, out coeff))
-                    {
-                        coefficients.Add(coeff);
-                        continue;
-                    }
+                    numericPart = token.Split('x')[0];
                 }
 
-                // Case B: token is just a number
-                if (double.TryParse(token, NumberStyles.Any, CultureInfo.InvariantCulture, out coeff))
+                string lowered = token.ToLower().Trim();
+                if (InputFileParser.RestrictionKeywords.Contains(lowered))
+                {
+                    continue;
+                }
+
+                if (double.TryParse(numericPart, NumberStyles.Any, CultureInfo.InvariantCulture, out double coeff))
                 {
                     coefficients.Add(coeff);
                 }
                 else
                 {
-                    model.ParsingErrors.Add($"Line {lineNumber}: Invalid coefficient '{token}' at position {i + 1}. Expected a number.");
-                    coefficients.Add(0.0);
+                    throw new InvalidModelException($"Could not parse coefficient '{token}' on line {lineNumber}.", lineNumber);
                 }
             }
-
             return coefficients.ToArray();
         }
 
-        /// Parse sign restrictions
+
         private void ParseSignRestrictions(string line, int lineNumber, LinearProgrammingModel model)
         {
-            try
+            var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+                throw new InvalidModelException("No sign restrictions found on the last line.", lineNumber);
+
+            foreach (var part in parts)
             {
-                var parts = line.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                // Clean the input token to handle variations
+                string trimmedPart = new string(part.ToLower().Trim().Where(char.IsLetterOrDigit).ToArray());
+                SignRestriction restriction;
 
-                if (parts.Length == 0)
-                    throw new InvalidModelException($"Line {lineNumber}: No sign restrictions found");
-
-                foreach (var part in parts)
+                // Using a classic switch statement for maximum compatibility.
+                switch (trimmedPart)
                 {
-                    SignRestriction restriction;
-                    string trimmedPart = new string(part.ToLower().Trim().Where(char.IsLetter).ToArray());
-
-                    switch (trimmedPart)
-                    {
-                        case "+":
-                        case "nonneg":
-                        case "nonnegative":
-                            restriction = SignRestriction.NonNegative; break;
-                        case "-":
-                        case "nonpos":
-                        case "nonpositive":
-                            restriction = SignRestriction.NonPositive; break;
-                        case "urs":
-                        case "free":
-                        case "unrestricted":
-                            restriction = SignRestriction.Unrestricted; break;
-                        case "int":
-                        case "integer":
-                            restriction = SignRestriction.Integer; break;
-                        case "bin":
-                        case "binary":
-                            restriction = SignRestriction.Binary; break;
-                        default:
-                            model.ParsingErrors.Add($"Line {lineNumber}: Invalid sign restriction '{part}'");
-                            restriction = SignRestriction.NonNegative;
-                            break;
-                    }
-
-                    model.SignRestrictions.Add(restriction);
+                    case "nonneg":
+                    case "nonnegative":
+                        restriction = SignRestriction.NonNegative;
+                        break;
+                    case "nonpos":
+                    case "nonpositive":
+                        restriction = SignRestriction.NonPositive;
+                        break;
+                    case "urs":
+                    case "free":
+                    case "unrestricted":
+                        restriction = SignRestriction.Unrestricted;
+                        break;
+                    case "int":
+                    case "integer":
+                        restriction = SignRestriction.Integer;
+                        break;
+                    case "bin":
+                    case "binary":
+                        restriction = SignRestriction.Binary;
+                        break;
+                    default:
+                        // If no match is found, throw a detailed error.
+                        throw new InvalidModelException($"Invalid sign restriction '{part}' (processed as '{trimmedPart}').", lineNumber);
                 }
-            }
-            catch (Exception ex) when (!(ex is InvalidModelException))
-            {
-                throw new InvalidModelException($"Line {lineNumber}: Error parsing sign restrictions - {ex.Message}", ex);
+                model.SignRestrictions.Add(restriction);
             }
         }
-
-        /// Create variables
         private void CreateVariables(LinearProgrammingModel model)
         {
-            int variableCount = Math.Max(model.ObjectiveCoefficients.Length, model.SignRestrictions.Count);
-
-            for (int i = 0; i < variableCount; i++)
+            int variableCount = model.ObjectiveCoefficients.Length;
+            foreach (var c in model.Constraints)
             {
-                SignRestriction restriction = i < model.SignRestrictions.Count
-                    ? model.SignRestrictions[i]
-                    : SignRestriction.NonNegative;
-
-                var variable = new Variable($"x{i + 1}", restriction, i);
-                model.Variables.Add(variable);
+                if (c.Coefficients.Length > variableCount)
+                    variableCount = c.Coefficients.Length;
             }
 
+            // Pad objective coefficients if necessary
             if (model.ObjectiveCoefficients.Length < variableCount)
             {
-                var newCoeffs = new double[variableCount];
-                Array.Copy(model.ObjectiveCoefficients, newCoeffs, model.ObjectiveCoefficients.Length);
-                model.ObjectiveCoefficients = newCoeffs;
-                model.ParsingErrors.Add($"Warning: Padded objective coefficients with zeros to match variable count ({variableCount})");
+                var newObjCoeffs = new double[variableCount];
+                Array.Copy(model.ObjectiveCoefficients, newObjCoeffs, model.ObjectiveCoefficients.Length);
+                model.ObjectiveCoefficients = newObjCoeffs;
             }
 
+            // Pad constraint coefficients if necessary
+            foreach (var constraint in model.Constraints)
+            {
+                if (constraint.Coefficients.Length < variableCount)
+                {
+                    var newCoeffs = new double[variableCount];
+                    Array.Copy(constraint.Coefficients, newCoeffs, constraint.Coefficients.Length);
+                    constraint.Coefficients = newCoeffs;
+                }
+            }
+
+            // Add default sign restrictions if not enough are provided
             while (model.SignRestrictions.Count < variableCount)
             {
                 model.SignRestrictions.Add(SignRestriction.NonNegative);
-                model.ParsingErrors.Add($"Warning: Added default non-negative restriction for variable x{model.SignRestrictions.Count}");
+            }
+
+            // Create the Variable objects
+            for (int i = 0; i < variableCount; i++)
+            {
+                model.Variables.Add(new Variable($"x{i + 1}", model.SignRestrictions[i], i));
             }
         }
     }

@@ -7,151 +7,187 @@ using System.Linq;
 
 namespace Project_LPR381.Algorithms
 {
+    /// Primal Simplex (Two-Phase if needed).
+    /// - Canonicalization adds slack/surplus/artificial columns.
+    /// - Phase I maximizes -sum(artificials) to drive artificials to zero.
+    /// - Phase II optimizes the original objective.
+    /// - Every tableau is printed safely via IterationLog.
     public sealed class PrimalSimplex
     {
         private const double EPS = 1e-9;
 
+        // ===== Public result =====
         public sealed class Result
         {
             public bool IsOptimal;
             public bool IsUnbounded;
             public bool IsInfeasible;
             public double ObjectiveValue;
-            public double[] X;                  // in original variable order
-            public string[] ColumnNames;        // tableau column names (without RHS)
-            public string[] RowNames;           // basic var names
-            public double[,] LastTableau;       // final tableau (rows = m+1, cols = n+1 incl RHS)
+            public double[] X;                  // original variable order
+            public string[] ColumnNames;        // columns (without RHS)
+            public string[] RowNames;           // basic variable names per constraint row
+            public double[,] LastTableau;       // final tableau (m+1 x n+1)
         }
 
-        // Public entry
+        // ===== Internal canonical model =====
+        private sealed class Canonical
+        {
+            public int m, n;                   // rows, cols
+            public double[,] A;                // m x n
+            public double[] b;                 // m
+            public double[] c;                 // n  (original objective mapped)
+            public List<string> ColNames;      // length n
+            public string[] RowNames;          // length m (basic var names)
+            public int[] Basic;                // length m (basic column index per row)
+            public List<int> ArtificialCols;   // artificial column indices (final)
+            public int OrigVarCount;           // number of original x variables
+            public double ObjSign;             // +1 for MAX, -1 if original was MIN
+        }
+
+        // ===== Public entry point =====
         public Result Solve(LinearProgrammingModel model, IterationLog log)
         {
             if (model == null) throw new ArgumentNullException(nameof(model));
             if (model.Variables.Count == 0 || model.Constraints.Count == 0)
                 throw new InvalidOperationException("Model has no variables or constraints.");
 
-            // Build canonical (Two-Phase)
+            // Build canonical form
             Canonical K = BuildCanonical(model);
-            log.Title("Canonical form");
-            log.Note($"Objective: MAX  (internally we maximize; MIN is converted)");
-            log.Note($"Vars: {string.Join(", ", K.ColNames)}");
-            for (int i = 0; i < K.m; i++)
-                log.Note($"Row {K.RowNames[i]}: " + string.Join(" ",
-                    Enumerable.Range(0, K.n).Select(j => $"{(K.A[i, j] >= 0 && j > 0 ? "+" : "")}{K.A[i, j]} {K.ColNames[j]}")) + $" = {K.b[i]}");
 
-            // Phase I if artificials exist
-            Result res;
-            if (K.ArtificialIdx.Count > 0)
+            // Optional: quick print of canonical rows
+            log.Title("Canonical form");
+            log.Note("Columns: " + string.Join(", ", K.ColNames));
+            for (int i = 0; i < K.m; i++)
             {
-                res = PhaseI(K, log);
-                if (res.IsInfeasible) return res;
-                // Remove artificial columns, build Phase II tableau with original c
-                K = BuildPhaseIIFromPhaseI(K, res);
+                var terms = new List<string>();
+                for (int j = 0; j < K.n; j++)
+                {
+                    var v = K.A[i, j];
+                    if (Math.Abs(v) < 1e-12) continue;
+                    string s = (v >= 0 && terms.Count > 0 ? "+" : "") + v.ToString("0.###") + "*" + K.ColNames[j];
+                    terms.Add(s);
+                }
+                log.Note($"{K.RowNames[i]}: {(terms.Count > 0 ? string.Join(" ", terms) : "0")} = {K.b[i]:0.###}");
             }
 
-            // Phase II: optimize original objective
-            res = RunSimplex(K, K.c, log, header: "Primal Simplex (Phase II)");
+            // Phase I if artificials exist
+            Result phaseI = null;
+            if (K.ArtificialCols.Count > 0)
+            {
+                double[] c1 = new double[K.n];
+                foreach (int j in K.ArtificialCols) c1[j] = -1.0; // maximize -sum(a)
+                phaseI = RunSimplex(K, c1, log, "Primal Simplex (Phase I)");
+
+                // Feasible iff optimum == 0 (we maximize -sum(a))
+                if (!phaseI.IsOptimal || phaseI.ObjectiveValue < -1e-6)
+                {
+                    phaseI.IsInfeasible = true;
+                    return phaseI;
+                }
+
+                // Remove artificial columns; rebuild basis if needed
+                K = BuildPhaseIIFromPhaseI(K);
+            }
+
+            // Phase II (original objective)
+            Result res = RunSimplex(K, K.c, log, "Primal Simplex (Phase II)");
             return MapBackToOriginal(model, K, res);
         }
 
         // ===== Canonicalization =====
-        private sealed class Canonical
-        {
-            public int m, n;                  // m constraints, n columns
-            public double[,] A;               // m x n
-            public double[] b;                // m
-            public double[] c;                // n (original objective in canonical columns)
-            public List<string> ColNames;     // var names for columns
-            public string[] RowNames;         // basic names (size m)
-            public List<int> Basic;           // basic column index per row
-            public List<int> ArtificialIdx;   // artificial column indices
-            public int origVarCount;          // number of original variables
-            public double objSign = 1.0;      // 1 for max, -1 when original was min
-            public int[] origVarCol;          // mapping original xi -> column index in canonical
-        }
-
         private Canonical BuildCanonical(LinearProgrammingModel m)
         {
-            // Convert MIN to MAX by flipping c
-            var objSign = (m.ObjectiveType == ObjectiveType.Minimize) ? -1.0 : 1.0;
-            int n0 = m.Variables.Count;
+            int n0 = m.Variables.Count;     // original variable count
             int m0 = m.Constraints.Count;
+            double objSign = (m.ObjectiveType == ObjectiveType.Minimize) ? -1.0 : 1.0;
 
-            // Start with original x columns
-            var colNames = new List<string>();
-            for (int j = 0; j < n0; j++) colNames.Add($"x{j + 1}");
+            // names for original variables
+            var baseNames = Enumerable.Range(1, n0).Select(k => "x" + k).ToList();
 
-            // Build A,b, add slack/surplus/artificial
-            var rows = new List<double[]>();
-            var rhs = new List<double>();
-            var basic = new List<int>();
-            var artificials = new List<int>();
+            // We'll accumulate base rows (only original variables) and extra columns separately.
+            var rows = new List<double[]>();         // each is length n0 (original x columns)
+            var rhs  = new List<double>();           // RHS per row
 
-            // We will collect additional columns as we go
-            var extraCols = new List<double[]>();
-            var extraNames = new List<string>();
+            var extraCols  = new List<double[]>();   // each entry is a COLUMN vector built as rows grow
+            var extraNames = new List<string>();     // names for extra columns (s/t/a)
 
+            var basic       = new List<int>();       // FINAL column index per row (after extras appended)
+            var artificials = new List<int>();       // FINAL column indices for artificials
+
+            int sCount = 0, tCount = 0, aCount = 0;
+
+            // Build by constraint
             for (int i = 0; i < m0; i++)
             {
                 var cons = m.Constraints[i];
-                var row = new double[colNames.Count + extraCols.Count];
-                // ensure length
-                Array.Resize(ref row, colNames.Count);
-                for (int j = 0; j < n0; j++)
+
+                // base row = original coefficients (copy to fixed length n0)
+                var row = new double[n0];
+                for (int j = 0; j < Math.Min(n0, cons.Coefficients.Length); j++)
                     row[j] = cons.Coefficients[j];
 
-                double b = cons.RightHandSide;
-
+                // transform via slack/surplus/artificial
                 if (cons.Relation == "<=")
                 {
-                    // add slack +1
-                    var slack = new double[rows.Count + 1 == 0 ? 0 : 0]; // dummy to please IDE
-                    AddNewColumn(extraCols, rows.Count, +1.0, out int colIdx);
-                    extraNames.Add($"s{i + 1}");
-                    row = ExtendRow(row, extraCols);
-                    basic.Add(colNames.Count + colIdx);
+                    int idxS;
+                    AddNewColumn(extraCols, rows.Count, +1.0, out idxS);
+                    extraNames.Add("s" + (++sCount));
+                    basic.Add(n0 + idxS);             // slack is basic
                 }
                 else if (cons.Relation == ">=")
                 {
-                    // surplus -1 and artificial +1
-                    AddNewColumn(extraCols, rows.Count, -1.0, out int cSur);
-                    extraNames.Add($"t{i + 1}");
-                    // artificial
-                    AddNewColumn(extraCols, rows.Count, +1.0, out int cArt);
-                    extraNames.Add($"a{i + 1}");
-                    row = ExtendRow(row, extraCols);
-                    basic.Add(colNames.Count + cArt);
-                    artificials.Add(colNames.Count + cArt);
+                    int idxT;
+                    AddNewColumn(extraCols, rows.Count, -1.0, out idxT);  // surplus (not basic)
+                    extraNames.Add("t" + (++tCount));
+
+                    int idxA;
+                    AddNewColumn(extraCols, rows.Count, +1.0, out idxA);  // artificial (basic)
+                    extraNames.Add("a" + (++aCount));
+                    basic.Add(n0 + idxA);
+                    artificials.Add(n0 + idxA);
                 }
                 else // "="
                 {
-                    // artificial +1
-                    AddNewColumn(extraCols, rows.Count, +1.0, out int cArt);
-                    extraNames.Add($"a{i + 1}");
-                    row = ExtendRow(row, extraCols);
-                    basic.Add(colNames.Count + cArt);
-                    artificials.Add(colNames.Count + cArt);
+                    int idxA;
+                    AddNewColumn(extraCols, rows.Count, +1.0, out idxA);  // artificial (basic)
+                    extraNames.Add("a" + (++aCount));
+                    basic.Add(n0 + idxA);
+                    artificials.Add(n0 + idxA);
                 }
 
                 rows.Add(row);
-                rhs.Add(b);
+                rhs.Add(cons.RightHandSide);
             }
 
-            // finalize matrix
+            // Build final A by composing base + extra columns
             int m1 = rows.Count;
-            int n1 = colNames.Count + extraCols.Count;
+            int n1 = n0 + extraCols.Count;
+
             var A = new double[m1, n1];
             for (int i = 0; i < m1; i++)
-                for (int j = 0; j < n1; j++)
-                    A[i, j] = rows[i][j];
+            {
+                var r = rows[i];
+                for (int j = 0; j < n0; j++) A[i, j] = (j < r.Length) ? r[j] : 0.0;
+                for (int k = 0; k < extraCols.Count; k++)
+                {
+                    var col = extraCols[k];
+                    A[i, n0 + k] = (i < col.Length) ? col[i] : 0.0;
+                }
+            }
 
             var bvec = rhs.ToArray();
 
-            // compose names
-            colNames.AddRange(extraNames);
-            var rowNames = Enumerable.Range(0, m1).Select(i => $"B{i + 1}").ToArray();
+            // compose final column names
+            var finalColNames = new List<string>(n1);
+            finalColNames.AddRange(baseNames);
+            finalColNames.AddRange(extraNames);
 
-            // objective in canonical columns
+            // row (basic variable) names = the names of their basic columns
+            var rowNames = new string[m1];
+            for (int i = 0; i < m1; i++)
+                rowNames[i] = finalColNames[basic[i]];
+
+            // objective in final columns (only original variables keep coefficients)
             var c = new double[n1];
             for (int j = 0; j < n0; j++) c[j] = objSign * m.ObjectiveCoefficients[j];
 
@@ -162,82 +198,49 @@ namespace Project_LPR381.Algorithms
                 A = A,
                 b = bvec,
                 c = c,
-                ColNames = colNames,
+                ColNames = finalColNames,
                 RowNames = rowNames,
-                Basic = basic,
-                ArtificialIdx = artificials,
-                origVarCount = n0,
-                objSign = objSign,
-                origVarCol = Enumerable.Range(0, n0).ToArray()
+                Basic = basic.ToArray(),
+                ArtificialCols = artificials,
+                OrigVarCount = n0,
+                ObjSign = objSign
             };
-
-            void AddNewColumn(List<double[]> cols, int currentRow, double valAtRow, out int idx)
-            {
-                idx = cols.Count;
-                int r = currentRow + 1; // number of rows after we add this one
-                var col = new double[r];
-                for (int i = 0; i < r - 1; i++) col[i] = 0.0;
-                col[r - 1] = valAtRow;
-                cols.Add(col);
-            }
-
-            // This static helper method has been corrected for clarity and safety
-            double[] ExtendRow(double[] row, List<double[]> cols)
-            {
-                int n = row.Length;
-                int totalCols = n + cols.Count;
-                var r = new double[totalCols];
-                Array.Copy(row, r, n); // Copy original variables
-                for (int j = 0; j < cols.Count; j++)
-                {
-                    // The value for the current row is the last element in that column vector
-                    r[n + j] = cols[j][cols[j].Length - 1];
-                }
-                return r;
-            }
         }
 
-        private Result PhaseI(Canonical K, IterationLog log)
+        // Remove artificial columns after Phase I and rebuild a basis if needed
+        private Canonical BuildPhaseIIFromPhaseI(Canonical K)
         {
-            // Phase I objective: minimize sum of artificials -> maximize -sum(a)
-            var c1 = new double[K.n];
-            foreach (int j in K.ArtificialIdx) c1[j] = -1.0;
-            var r = RunSimplex(K, c1, log, header: "Primal Simplex (Phase I)");
-            if (!r.IsOptimal || r.ObjectiveValue < -EPS)
-            {
-                r.IsInfeasible = true;
-                return r;
-            }
-            return r;
-        }
+            bool[] drop = new bool[K.n];
+            foreach (int j in K.ArtificialCols) drop[j] = true;
 
-        private Canonical BuildPhaseIIFromPhaseI(Canonical K, Result phaseIRes)
-        {
-            // remove artificial columns
-            var keep = Enumerable.Range(0, K.n).Except(K.ArtificialIdx).ToArray();
-            int n2 = keep.Length;
+            int n2 = 0;
+            var map = new int[K.n];
+            for (int j = 0; j < K.n; j++)
+            {
+                if (!drop[j]) { map[j] = n2; n2++; }
+                else map[j] = -1;
+            }
+
             var A2 = new double[K.m, n2];
-            for (int i = 0; i < K.m; i++)
-                for (int jj = 0; jj < n2; jj++)
-                    A2[i, jj] = K.A[i, keep[jj]];
             var c2 = new double[n2];
-            for (int jj = 0; jj < n2 && jj < K.c.Length; jj++)
-                c2[jj] = K.c[keep[jj]];
-            var colNames2 = keep.Select(j => K.ColNames[j]).ToList();
+            var names2 = new List<string>(n2);
 
-            // Rebuild basis indices if needed (drop any artificial bases)
-            var basic2 = new List<int>();
+            for (int j = 0; j < K.n; j++)
+            {
+                if (map[j] < 0) continue;
+                names2.Add(K.ColNames[j]);
+                c2[map[j]] = (j < K.c.Length) ? K.c[j] : 0.0;
+                for (int i = 0; i < K.m; i++) A2[i, map[j]] = K.A[i, j];
+            }
+
+            // Rebuild a basic set by detecting unit columns per row
+            var basic2 = new int[K.m];
+            var rowNames2 = new string[K.m];
             for (int i = 0; i < K.m; i++)
             {
-                int bjOld = K.Basic[i];
-                int pos = Array.IndexOf(keep, bjOld);
-                if (pos >= 0) basic2.Add(pos);
-                else
-                {
-                    // try to find an identity column in remaining columns
-                    int bj = FindUnitColumn(A2, i);
-                    basic2.Add(bj >= 0 ? bj : 0);
-                }
+                int bj = FindUnitColumn(A2, i);
+                basic2[i] = bj >= 0 ? bj : 0;
+                rowNames2[i] = names2[basic2[i]];
             }
 
             return new Canonical
@@ -247,57 +250,36 @@ namespace Project_LPR381.Algorithms
                 A = A2,
                 b = (double[])K.b.Clone(),
                 c = c2,
-                ColNames = colNames2,
-                RowNames = (string[])K.RowNames.Clone(),
+                ColNames = names2,
+                RowNames = rowNames2,
                 Basic = basic2,
-                ArtificialIdx = new List<int>(),
-                origVarCount = K.origVarCount,
-                objSign = K.objSign,
-                origVarCol = K.origVarCol
+                ArtificialCols = new List<int>(),
+                OrigVarCount = K.OrigVarCount,
+                ObjSign = K.ObjSign
             };
-
-            int FindUnitColumn(double[,] A, int row)
-            {
-                int m = A.GetLength(0);
-                int n = A.GetLength(1);
-                for (int j = 0; j < n; j++)
-                {
-                    bool isUnit = true;
-                    for (int i = 0; i < m; i++)
-                    {
-                        double v = Math.Abs(A[i, j]);
-                        if (i == row) { if (Math.Abs(v - 1.0) > 1e-9) { isUnit = false; break; } }
-                        else { if (v > 1e-9) { isUnit = false; break; } }
-                    }
-                    if (isUnit) return j;
-                }
-                return -1;
-            }
         }
 
-        // ===== Core simplex on a canonical model =====
-        private Result RunSimplex(Canonical K, double[] c, IterationLog log, string header)
+        // ===== Simplex core =====
+        private Result RunSimplex(Canonical K, double[] cUse, IterationLog log, string header)
         {
             log.Title(header);
 
-            // Build tableau: rows m+1, cols n+1 (RHS)
-            int m = K.m; int n = K.n;
+            int m = K.m, n = K.n;
             var T = new double[m + 1, n + 1];
 
-            // copy A|b
+            // Copy A|b
             for (int i = 0; i < m; i++)
             {
                 for (int j = 0; j < n; j++) T[i, j] = K.A[i, j];
                 T[i, n] = K.b[i];
             }
-            // objective row: z - c^T x = 0  -> store reduced costs as -(c_N - c_B*B^-1*N) on the fly via tableau ops
-            for (int j = 0; j < n; j++) T[m, j] = -c[j];
-            T[m, n] = 0.0;
 
-            var rowNames = K.RowNames.ToArray();
-            var colNames = K.ColNames.ToArray();
+            // Initialize objective row to canonical form (z - c^T x = 0, with current basis)
+            InitializeObjectiveRow(T, m, n, cUse, K.Basic);
 
-            // If the current basis not reflected in tableau, pivot to make it basic (we built rows accordingly, so usually ok)
+            // Build SAFE names of exact sizes for printing
+            string[] colNames = SafeCols(K.ColNames.ToArray(), n);
+            string[] rowNames = SafeRows(K.RowNames, m);
 
             int step = 0;
             log.PrintTableau(colNames, rowNames, T, step);
@@ -305,31 +287,46 @@ namespace Project_LPR381.Algorithms
             while (true)
             {
                 int enter = ChooseEntering(T, m, n);
-                if (enter < 0) // optimal
+                if (enter < 0)
                 {
-                    var res = ExtractResult(K, T, m, n, colNames, rowNames);
-                    res.IsOptimal = true;
-                    return res;
+                    var r = ExtractResult(K, T, m, n, colNames, rowNames);
+                    r.IsOptimal = true;
+                    return r;
                 }
 
                 int leave = ChooseLeaving(T, m, n, enter);
                 if (leave < 0)
                 {
-                    // unbounded
-                    var res = ExtractResult(K, T, m, n, colNames, rowNames);
-                    res.IsUnbounded = true;
-                    return res;
+                    var r = ExtractResult(K, T, m, n, colNames, rowNames);
+                    r.IsUnbounded = true;
+                    return r;
                 }
 
                 string entName = colNames[enter];
                 string levName = rowNames[leave];
 
                 Pivot(T, m, n, leave, enter);
-
                 rowNames[leave] = entName;
+                K.Basic[leave] = enter;
 
                 step++;
-                log.PrintTableau(colNames, rowNames, T, step, $"Entering {entName}, Leaving {levName}");
+                log.PrintTableau(colNames, rowNames, T, step, "Entering " + entName + ", Leaving " + levName);
+            }
+        }
+
+        private static void InitializeObjectiveRow(double[,] T, int m, int n, double[] c, int[] basic)
+        {
+            // set z row to -c
+            for (int j = 0; j < n; j++) T[m, j] = -((j < c.Length) ? c[j] : 0.0);
+            T[m, n] = 0.0;
+
+            // make it canonical by adding c_B * (each basic row)
+            for (int i = 0; i < m; i++)
+            {
+                int bj = basic[i];
+                double cb = (bj >= 0 && bj < c.Length) ? c[bj] : 0.0;
+                if (Math.Abs(cb) < 1e-12) continue;
+                for (int j = 0; j <= n; j++) T[m, j] += cb * T[i, j];
             }
         }
 
@@ -338,8 +335,8 @@ namespace Project_LPR381.Algorithms
             int col = -1; double best = 0.0;
             for (int j = 0; j < n; j++)
             {
-                double rc = T[m, j];
-                if (rc < -1e-9) // remember objective row stores -reduced-costs
+                double rc = T[m, j]; // negative reduced cost => candidate (since maximizing)
+                if (rc < -1e-9)
                 {
                     if (col < 0 || rc < best) { best = rc; col = j; }
                 }
@@ -373,28 +370,25 @@ namespace Project_LPR381.Algorithms
                 if (i == pRow) continue;
                 double factor = T[i, pCol];
                 if (Math.Abs(factor) < 1e-12) continue;
-                for (int j = 0; j <= n; j++)
-                    T[i, j] -= factor * T[pRow, j];
+                for (int j = 0; j <= n; j++) T[i, j] -= factor * T[pRow, j];
             }
         }
 
         private Result ExtractResult(Canonical K, double[,] T, int m, int n, string[] colNames, string[] rowNames)
         {
-            // basic variables are the row names; read their RHS
             var xCanon = new double[n];
             for (int i = 0; i < m; i++)
             {
                 int col = Array.IndexOf(colNames, rowNames[i]);
                 if (col >= 0) xCanon[col] = T[i, n];
             }
-            var xOrig = new double[K.origVarCount];
-            for (int j = 0; j < K.origVarCount; j++)
-                xOrig[j] = (j < xCanon.Length) ? xCanon[j] : 0.0;
 
-            double z = T[m, n];
+            var xOrig = new double[K.OrigVarCount];
+            for (int j = 0; j < K.OrigVarCount; j++) xOrig[j] = (j < xCanon.Length) ? xCanon[j] : 0.0;
+
             return new Result
             {
-                ObjectiveValue = z,
+                ObjectiveValue = T[m, n],
                 X = xOrig,
                 ColumnNames = colNames,
                 RowNames = rowNames,
@@ -404,11 +398,54 @@ namespace Project_LPR381.Algorithms
 
         private Result MapBackToOriginal(LinearProgrammingModel model, Canonical K, Result r)
         {
-            // If original was MIN, undo sign for objective (we maximized objSign*c)
             if (model.ObjectiveType == ObjectiveType.Minimize)
                 r.ObjectiveValue *= -1.0;
-
             return r;
+        }
+
+        // ===== Helpers (class-level; C# 7.3 friendly) =====
+        private static void AddNewColumn(List<double[]> cols, int currentRow, double valAtRow, out int idx)
+        {
+            idx = cols.Count;
+            int r = currentRow + 1;
+            var col = new double[r];
+            for (int i = 0; i < r - 1; i++) col[i] = 0.0;
+            col[r - 1] = valAtRow;
+            cols.Add(col);
+        }
+
+        private static int FindUnitColumn(double[,] A, int row)
+        {
+            int m = A.GetLength(0);
+            int n = A.GetLength(1);
+            for (int j = 0; j < n; j++)
+            {
+                bool isUnit = true;
+                for (int i = 0; i < m; i++)
+                {
+                    double v = Math.Abs(A[i, j]);
+                    if (i == row) { if (Math.Abs(v - 1.0) > 1e-9) { isUnit = false; break; } }
+                    else { if (v > 1e-9) { isUnit = false; break; } }
+                }
+                if (isUnit) return j;
+            }
+            return -1;
+        }
+
+        private static string[] SafeCols(string[] src, int need)
+        {
+            var dst = new string[need];
+            for (int j = 0; j < need; j++)
+                dst[j] = (src != null && j < src.Length && src[j] != null) ? src[j] : "x" + (j + 1);
+            return dst;
+        }
+
+        private static string[] SafeRows(string[] src, int need)
+        {
+            var dst = new string[need];
+            for (int i = 0; i < need; i++)
+                dst[i] = (src != null && i < src.Length && src[i] != null) ? src[i] : "r" + (i + 1);
+            return dst;
         }
     }
 }

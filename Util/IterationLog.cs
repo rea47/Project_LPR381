@@ -1,45 +1,111 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Project_LPR381.Util
 {
-    public sealed class IterationLog
+    public class IterationLog
     {
-        public static double R3(double x) => Math.Round(x, 3, MidpointRounding.AwayFromZero);
+        private readonly StringBuilder _buffer; // Only one buffer for all output
+        private string[] _footer;
 
-        public void Title(string t)
+        /// <summary>
+        /// Constructor that accepts a single StringBuilder to capture all output.
+        /// </summary>
+        public IterationLog(StringBuilder buffer = null)
         {
-            Console.WriteLine();
-            Console.WriteLine("=== " + t.ToUpper() + " ===");
+            _buffer = buffer;
         }
 
-        public void Note(string t) => Console.WriteLine(t);
-
-        public void PrintTableau(string[] colNames, string[] rowNames, double[,] T, int step, string extra = "")
+        /// <summary>
+        /// Central logging method to write to both the console and the single buffer.
+        /// </summary>
+        private void Log(string message)
         {
-            Console.WriteLine($"\n--- Tableau (step {step}) {extra} ---");
-            int m = T.GetLength(0);
-            int n = T.GetLength(1);
-            var hdr = string.Join("  ", colNames.Select(s => s.PadLeft(8)));
-            Console.WriteLine("         " + hdr + "  |    RHS");
-            for (int i = 0; i < m; i++)
+            Console.WriteLine(message);
+            _buffer?.AppendLine(message);
+        }
+
+        public void Title(string title)
+        {
+            Log($"\n--- {title} ---");
+        }
+
+        public void Note(string note)
+        {
+            Log(note);
+        }
+
+        public void SetFooter(string[] lines)
+        {
+            _footer = lines;
+        }
+
+        public void ClearFooter()
+        {
+            _footer = null;
+        }
+
+        public static string R3(double v) => v.ToString("0.###");
+
+        public void PrintTableau(string[] colNames, string[] rowNames, double[,] T, int step, string note = null)
+        {
+            string tableauString;
+            using (var sw = new StringWriter())
             {
-                Console.Write((rowNames[i] + "   ").PadRight(9));
-                for (int j = 0; j < n - 1; j++)
-                    Console.Write(R3(T[i, j]).ToString("0.###").PadLeft(8) + "  ");
-                Console.Write("| " + R3(T[i, n - 1]).ToString("0.###").PadLeft(6));
-                Console.WriteLine();
+                sw.WriteLine();
+                if (!string.IsNullOrEmpty(note))
+                    sw.WriteLine($"Step {step}: {note}");
+                else
+                    sw.WriteLine($"Step {step}");
+
+                int m = T.GetLength(0) - 1;
+                int n = T.GetLength(1) - 1;
+                string[] allCols = new[] { "Basic" }.Concat(colNames).Concat(new[] { "RHS" }).ToArray();
+                int[] widths = allCols.Select(s => s.Length).ToArray();
+                for (int i = 0; i < m + 1; i++)
+                {
+                    string rName = (i < m) ? rowNames[i] : "z";
+                    widths[0] = Math.Max(widths[0], rName.Length);
+                }
+                for (int j = 0; j < n + 1; j++)
+                    for (int i = 0; i < m + 1; i++)
+                        widths[j + 1] = Math.Max(widths[j + 1], R3(T[i, j]).Length);
+                for (int j = 0; j < widths.Length; j++) sw.Write(allCols[j].PadRight(widths[j] + 2));
+                sw.WriteLine();
+                for (int j = 0; j < widths.Length; j++) sw.Write(new string('-', widths[j]).PadRight(widths[j] + 2));
+                sw.WriteLine();
+                for (int i = 0; i < m; i++)
+                {
+                    sw.Write(rowNames[i].PadRight(widths[0] + 2));
+                    for (int j = 0; j <= n; j++) sw.Write(R3(T[i, j]).PadRight(widths[j + 1] + 2));
+                    sw.WriteLine();
+                }
+                sw.Write("z".PadRight(widths[0] + 2));
+                for (int j = 0; j <= n; j++) sw.Write(R3(T[m, j]).PadRight(widths[j + 1] + 2));
+                sw.WriteLine();
+                if (_footer != null)
+                {
+                    foreach (var line in _footer) sw.WriteLine(line);
+                }
+                sw.WriteLine();
+                tableauString = sw.ToString();
             }
+
+            // Log the entire formatted tableau to the single buffer.
+            Log(tableauString);
         }
 
-        public void PrintVector(string title, string[] names, double[] v)
+        public void PrintVector(string title, string[] names, double[] values)
         {
-            Console.WriteLine($"\n{title}");
-            for (int i = 0; i < v.Length; i++)
-                Console.WriteLine($"  {names[i],-10} = {R3(v[i])}");
+            var sb = new StringBuilder();
+            sb.AppendLine(title);
+            for (int i = 0; i < values.Length; ++i)
+            {
+                sb.AppendLine($"  {(i < names.Length ? names[i] : "var" + i)}: {R3(values[i])}");
+            }
+            Log(sb.ToString());
         }
     }
 }

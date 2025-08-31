@@ -16,7 +16,11 @@ namespace Project_LPR381
     {
         private static LinearProgrammingModel currentModel;
         private static string outputFilePath = "output.txt";
-        private static StringBuilder outputBuffer = new StringBuilder();
+        private static string tableauOutputFilePath = "tableaus.txt";
+
+        private static string initialModelReport;
+        private static readonly StringBuilder lastAlgorithmLog = new StringBuilder(); // The one and only buffer for algorithm output
+        private static PrimalSimplex.Result lastSolution;
 
         static void Main(string[] args)
         {
@@ -36,7 +40,7 @@ namespace Project_LPR381
                     case "2":
                         ViewCurrentModel();
                         break;
-                    case "3": 
+                    case "3":
                         ShowAlgorithmsMenu();
                         break;
                     case "4":
@@ -91,7 +95,15 @@ namespace Project_LPR381
             try
             {
                 var parser = new InputFileParser();
-                currentModel = parser.ParseFile(filePath); // Includes validation
+                currentModel = parser.ParseFile(filePath);
+
+                var generator = new OutputFileGenerator();
+                // Store the generated analysis report once.
+                initialModelReport = generator.GenerateOutput(currentModel, filePath);
+
+                // Clear the log of any previously run algorithm.
+                lastAlgorithmLog.Clear();
+                lastSolution = null;
 
                 Console.WriteLine("File loaded successfully!");
                 DisplayModelSummary(currentModel);
@@ -113,19 +125,23 @@ namespace Project_LPR381
             }
             catch (FormatException ex)
             {
-                Console.WriteLine($"Format error: {ex.Message}");
-                outputBuffer.Clear();
-                outputBuffer.AppendLine($"UNEXPECTED ERROR");
-                outputBuffer.AppendLine($"================");
-                outputBuffer.AppendLine($"Error: {ex.Message}");
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("\n--- PARSING FAILED ---");
+                Console.WriteLine("A number in your input file is incorrectly formatted.");
+                Console.WriteLine($"\nDetailed Error: {ex.Message}");
+                Console.ResetColor();
+
+                // Update the report and clear the algorithm log on failure.
+                initialModelReport = $"MODEL PARSING FAILED\n====================\nError: {ex.Message}";
+                lastAlgorithmLog.Clear();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Unexpected error: {ex.Message}");
-                outputBuffer.Clear();
-                outputBuffer.AppendLine($"UNEXPECTED ERROR");
-                outputBuffer.AppendLine($"================");
-                outputBuffer.AppendLine($"Error: {ex.Message}");
+
+                // Update the report and clear the algorithm log on failure.
+                initialModelReport = $"UNEXPECTED ERROR\n================\nError: {ex.Message}";
+                lastAlgorithmLog.Clear();
             }
         }
 
@@ -143,28 +159,41 @@ namespace Project_LPR381
             {
                 ConsoleHelper.ShowAlgorithmsMenu();
                 string choice = Console.ReadLine();
-                var log = new IterationLog();
+                bool algorithmWasRun = false;
 
+                if (int.TryParse(choice, out int numericChoice) && numericChoice >= 1 && numericChoice <= 5)
+                {
+                    lastAlgorithmLog.Clear(); // Clear the single log buffer
+                    algorithmWasRun = true;
+                }
+
+                // Pass the single buffer to the logger
+                var log = new IterationLog(lastAlgorithmLog);
                 switch (choice)
                 {
                     case "1":
+                        // The redundant Clear() line has been removed from here.
                         var primalSimplex = new PrimalSimplex();
                         primalSimplex.Solve(currentModel, log);
+                        lastSolution = primalSimplex.Solve(currentModel, log);
                         break;
                     case "2":
+                        // The redundant Clear() line has been removed from here.
                         var revisedSimplex = new RevisedSimplex();
                         revisedSimplex.Solve(currentModel, log);
                         break;
                     case "3":
-                        var cuttingPlane = new CuttingPlaneS();
+                        // The redundant Clear() line has been removed from here.
+                        var cuttingPlane = new CuttingPlane();
                         cuttingPlane.Solve(currentModel, log);
                         break;
                     case "4":
+                        // The redundant Clear() line has been removed from here.
                         var bbSimplex = new BranchAndBoundSimplex();
                         bbSimplex.Solve(currentModel, log);
                         break;
                     case "5":
-                        // Knapsack requires a different model type, so we'll run a demo.
+                        // The redundant Clear() line has been removed from here.
                         var knapsackSolver = new BranchAndBoundKnapsack();
                         var knapsackModel = new KnapsackModel
                         {
@@ -172,12 +201,8 @@ namespace Project_LPR381
                             Weights = new double[] { 5, 4, 6, 3 },
                             Capacity = 10
                         };
-
-                        // Ensure Solve matches the correct signature
                         knapsackSolver.Solve(knapsackModel, log);
-
                         break;
-
                     case "6":
                         back = true;
                         break;
@@ -187,9 +212,14 @@ namespace Project_LPR381
                         break;
                 }
 
-                if (!back)
+                if (algorithmWasRun)
                 {
-                    Console.WriteLine("\nPress any key to return to the algorithms menu...");
+                    // Add headers and footers to the log
+                    lastAlgorithmLog.Insert(0, "*********************************\n    ALGORITHM EXECUTION LOG    \n*********************************\n");
+                    lastAlgorithmLog.Append("\n*******************************\n     ALGORITHM EXECUTION END     \n*******************************\n");
+
+                    Console.WriteLine("\nAlgorithm finished. Its output is ready for export.");
+                    Console.WriteLine("Press any key to return to the algorithms menu...");
                     Console.ReadKey();
                 }
             }
@@ -250,7 +280,6 @@ namespace Project_LPR381
 
             DisplayModelSummary(currentModel);
 
-            // Show any errors or warnings
             // Get a list of actual errors and warnings, ignoring informational messages
             var actualErrors = currentModel.ParsingErrors
                 .Where(e => !e.StartsWith("Info:"))
@@ -268,14 +297,13 @@ namespace Project_LPR381
 
             // Show model validation status
             Console.WriteLine($"\nModel Status:");
-            Console.WriteLine($"• Valid Format: {(!currentModel.ParsingErrors.Any(e => e.StartsWith("Warning:") || e.StartsWith("Error:")) ? "Yes" : "No")}"); 
+            Console.WriteLine($"• Valid Format: {(!currentModel.ParsingErrors.Any(e => e.StartsWith("Warning:") || e.StartsWith("Error:")) ? "Yes" : "No")}");
             Console.WriteLine($"• Ready for Solving: {(currentModel.IsValidForSolving() ? "Yes" : "No")}");
         }
 
         /// Run duality analysis on the current model
         private static void ShowDualityMenu()
         {
-            LinearProgrammingModel lpm = new LinearProgrammingModel();
             bool back = false;
             var duality = new Project_LPR31.Algorithms.DualityAlgo();
 
@@ -283,38 +311,40 @@ namespace Project_LPR381
             {
                 Console.Clear();
                 Console.WriteLine("=== Duality Analysis Menu ===");
-                Console.WriteLine("1. Apply Duality");
+                Console.WriteLine("1. Show Primal and Dual Forms");
                 Console.WriteLine("2. Solve Dual Model");
                 Console.WriteLine("3. Verify Strong/Weak Duality");
                 Console.WriteLine("4. Back to Main Menu");
                 Console.Write("Select option: ");
                 string input = Console.ReadLine();
 
+                // Check if a model is loaded BEFORE attempting any action.
+                if (currentModel == null && input != "4")
+                {
+                    Console.WriteLine("\nNo model loaded. Please load a model from the main menu first.");
+                    System.Threading.Thread.Sleep(2000);
+                    continue; // Go back to the start of the loop
+                }
+
                 switch (input)
                 {
                     case "1":
-                        if (currentModel == null)
-                        {
-                            Console.WriteLine("No model loaded.");
-                        }
-                        else
-                        {
-                            duality.ApplyDuality(currentModel);
-                        }
-                        Console.WriteLine("\nReturning to Duality Menu...");
-                        System.Threading.Thread.Sleep(1500);
+                        // Pass the loaded model
+                        duality.ApplyDuality(currentModel);
                         break;
 
                     case "2":
-                        duality.SolveDualModel(lpm);
-                        Console.WriteLine("\nReturning to Duality Menu...");
-                        System.Threading.Thread.Sleep(1500);
+                        // Pass the loaded model
+                        duality.SolveDualModel(currentModel);
+                        Console.WriteLine("\nPress any key to return to the Duality Menu...");
+                        Console.ReadKey();
                         break;
 
                     case "3":
-                        duality.VerifyDuality(lpm);
-                        Console.WriteLine("\nReturning to Duality Menu...");
-                        System.Threading.Thread.Sleep(1500);
+                        // Pass the loaded model
+                        duality.VerifyDuality(currentModel);
+                        Console.WriteLine("\nPress any key to return to the Duality Menu...");
+                        Console.ReadKey();
                         break;
 
                     case "4":
@@ -328,117 +358,85 @@ namespace Project_LPR381
                 }
             }
         }
-
         private static void ShowSensitivityMenu()
         {
             if (currentModel == null)
             {
                 Console.WriteLine("No model loaded. Please load a model first.");
-                System.Threading.Thread.Sleep(1500);
+                Console.ReadKey();
                 return;
             }
 
-            // Dummy solution for now
-            var dummySolution = new Project_LPR381.Models.SolutionResult
+            // Check if a valid, optimal solution exists before proceeding.
+            if (lastSolution == null || !lastSolution.IsOptimal)
             {
-                IsOptimal = true,
-                ObjectiveValue = 123.45,
-                VariableValues = new double[currentModel.Variables.Count]
-            };
+                Console.WriteLine("No optimal solution is available for analysis.");
+                Console.WriteLine("Please run the Primal Simplex algorithm (Option 1 in the Algorithms Menu) first.");
+                Console.ReadKey();
+                return;
+            }
 
-            var sensitivity = new Project_LPR31.Algorithms.SensitivityAnalysis(dummySolution, currentModel);
-            bool back = false;
-
-            while (!back)
+            try
             {
-                Console.Clear();
-                Console.WriteLine("=== Sensitivity Analysis Menu ===");
-                Console.WriteLine("1. Compute ranges for variables");
-                Console.WriteLine("2. Compute ranges for constraints");
-                Console.WriteLine("3. Compute shadow prices");
-                Console.WriteLine("4. Apply coefficient change");
-                Console.WriteLine("5. Apply RHS change");
-                Console.WriteLine("6. Back to Main Menu");
-                Console.Write("Select option: ");
-                string input = Console.ReadLine();
+                // 1. Create the analysis object with the REAL solution.
+                var sensitivity = new SensitivityAnalysis(lastSolution, currentModel);
 
-                switch (input)
-                {
-                    case "1":
-                        sensitivity.ComputeRangesForVariables();
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "2":
-                        sensitivity.ComputeRangesForConstraints();
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "3":
-                        sensitivity.ComputeShadowPrices();
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "4":
-                        Console.Write("Enter variable index: ");
-                        int vi = int.Parse(Console.ReadLine());
-                        Console.Write("Enter new coefficient: ");
-                        double coeff = double.Parse(Console.ReadLine());
-                        sensitivity.ApplyChangeToCoefficient(vi, coeff);
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "5":
-                        Console.Write("Enter constraint index: ");
-                        int ci = int.Parse(Console.ReadLine());
-                        Console.Write("Enter new RHS value: ");
-                        double rhs = double.Parse(Console.ReadLine());
-                        sensitivity.ApplyChangeToRHS(ci, rhs);
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "6":
-                        back = true;
-                        break;
-
-                    default:
-                        Console.WriteLine("Invalid choice. Returning...");
-                        System.Threading.Thread.Sleep(1000);
-                        break;
-                }
+                // 2. Call the single method that runs the internal sensitivity menu.
+                sensitivity.PerformAnalysis();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred during sensitivity analysis: {ex.Message}");
+                Console.ReadKey();
             }
         }
 
-
-        /// Export results to output file with comprehensive formatting
+        /// Export results to output files with comprehensive formatting
         private static void ExportResults()
         {
-            if (outputBuffer.Length == 0)
+            if (string.IsNullOrEmpty(initialModelReport))
             {
                 Console.WriteLine("No results to export. Please load a model first.");
                 return;
             }
 
-            Console.Write($"Enter output file path (default: {outputFilePath}): ");
-            string filePath = Console.ReadLine();
+            // --- 1. EXPORT MAIN REPORT (Model Analysis Only) ---
+            Console.Write($"Enter main output file path (default: {outputFilePath}): ");
+            string mainFilePath = Console.ReadLine();
+            if (string.IsNullOrEmpty(mainFilePath))
+                mainFilePath = outputFilePath;
 
-            if (string.IsNullOrEmpty(filePath))
-                filePath = outputFilePath;
-
-            // Simple file writing, assuming FileHelper exists
             try
             {
-                System.IO.File.WriteAllText(filePath, outputBuffer.ToString());
-                Console.WriteLine($"Results exported to {filePath}");
+                System.IO.File.WriteAllText(mainFilePath, initialModelReport);
+                Console.WriteLine($"Main model analysis exported to {mainFilePath}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error exporting results: {ex.Message}");
+                Console.WriteLine($"Error exporting main report: {ex.Message}");
+            }
+
+            // --- 2. EXPORT FULL ALGORITHM LOG (if it exists) ---
+            if (lastAlgorithmLog.Length > 0)
+            {
+                Console.Write($"Enter full algorithm log file path (default: {tableauOutputFilePath}): ");
+                string logFilePath = Console.ReadLine();
+                if (string.IsNullOrEmpty(logFilePath))
+                    logFilePath = tableauOutputFilePath;
+
+                try
+                {
+                    System.IO.File.WriteAllText(logFilePath, lastAlgorithmLog.ToString());
+                    Console.WriteLine($"Full algorithm log exported to {logFilePath}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error exporting algorithm log: {ex.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Note: No algorithm log was generated to export.");
             }
         }
     }
