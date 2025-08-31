@@ -20,6 +20,7 @@ namespace Project_LPR381
 
         private static string initialModelReport;
         private static readonly StringBuilder lastAlgorithmLog = new StringBuilder(); // The one and only buffer for algorithm output
+        private static PrimalSimplex.Result lastSolution;
 
         static void Main(string[] args)
         {
@@ -102,6 +103,7 @@ namespace Project_LPR381
 
                 // Clear the log of any previously run algorithm.
                 lastAlgorithmLog.Clear();
+                lastSolution = null;
 
                 Console.WriteLine("File loaded successfully!");
                 DisplayModelSummary(currentModel);
@@ -173,6 +175,7 @@ namespace Project_LPR381
                         // The redundant Clear() line has been removed from here.
                         var primalSimplex = new PrimalSimplex();
                         primalSimplex.Solve(currentModel, log);
+                        lastSolution = primalSimplex.Solve(currentModel, log);
                         break;
                     case "2":
                         // The redundant Clear() line has been removed from here.
@@ -360,86 +363,33 @@ namespace Project_LPR381
             if (currentModel == null)
             {
                 Console.WriteLine("No model loaded. Please load a model first.");
-                System.Threading.Thread.Sleep(1500);
+                Console.ReadKey();
                 return;
             }
 
-            // Dummy solution for now
-            var dummySolution = new Project_LPR381.Models.SolutionResult
+            // Check if a valid, optimal solution exists before proceeding.
+            if (lastSolution == null || !lastSolution.IsOptimal)
             {
-                IsOptimal = true,
-                ObjectiveValue = 123.45,
-                VariableValues = new double[currentModel.Variables.Count]
-            };
+                Console.WriteLine("No optimal solution is available for analysis.");
+                Console.WriteLine("Please run the Primal Simplex algorithm (Option 1 in the Algorithms Menu) first.");
+                Console.ReadKey();
+                return;
+            }
 
-            var sensitivity = new Project_LPR31.Algorithms.SensitivityAnalysis(dummySolution, currentModel);
-            bool back = false;
-
-            while (!back)
+            try
             {
-                Console.Clear();
-                Console.WriteLine("=== Sensitivity Analysis Menu ===");
-                Console.WriteLine("1. Compute ranges for variables");
-                Console.WriteLine("2. Compute ranges for constraints");
-                Console.WriteLine("3. Compute shadow prices");
-                Console.WriteLine("4. Apply coefficient change");
-                Console.WriteLine("5. Apply RHS change");
-                Console.WriteLine("6. Back to Main Menu");
-                Console.Write("Select option: ");
-                string input = Console.ReadLine();
+                // 1. Create the analysis object with the REAL solution.
+                var sensitivity = new SensitivityAnalysis(lastSolution, currentModel);
 
-                switch (input)
-                {
-                    case "1":
-                        sensitivity.ComputeRangesForVariables();
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "2":
-                        sensitivity.ComputeRangesForConstraints();
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "3":
-                        sensitivity.ComputeShadowPrices();
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "4":
-                        Console.Write("Enter variable index: ");
-                        int vi = int.Parse(Console.ReadLine());
-                        Console.Write("Enter new coefficient: ");
-                        double coeff = double.Parse(Console.ReadLine());
-                        sensitivity.ApplyChangeToCoefficient(vi, coeff);
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "5":
-                        Console.Write("Enter constraint index: ");
-                        int ci = int.Parse(Console.ReadLine());
-                        Console.Write("Enter new RHS value: ");
-                        double rhs = double.Parse(Console.ReadLine());
-                        sensitivity.ApplyChangeToRHS(ci, rhs);
-                        Console.WriteLine("\nReturning to Sensitivity Menu...");
-                        System.Threading.Thread.Sleep(1500);
-                        break;
-
-                    case "6":
-                        back = true;
-                        break;
-
-                    default:
-                        Console.WriteLine("Invalid choice. Returning...");
-                        System.Threading.Thread.Sleep(1000);
-                        break;
-                }
+                // 2. Call the single method that runs the internal sensitivity menu.
+                sensitivity.PerformAnalysis();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred during sensitivity analysis: {ex.Message}");
+                Console.ReadKey();
             }
         }
-
 
         /// Export results to output files with comprehensive formatting
         private static void ExportResults()
