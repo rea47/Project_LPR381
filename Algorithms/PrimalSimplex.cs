@@ -106,12 +106,12 @@ namespace Project_LPR381.Algorithms
 
             // We'll accumulate base rows (only original variables) and extra columns separately.
             var rows = new List<double[]>();         // each is length n0 (original x columns)
-            var rhs = new List<double>();           // RHS per row
+            var rhs  = new List<double>();           // RHS per row
 
-            var extraCols = new List<double[]>();   // each entry is a COLUMN vector built as rows grow
+            var extraCols  = new List<double[]>();   // each entry is a COLUMN vector built as rows grow
             var extraNames = new List<string>();     // names for extra columns (s/t/a)
 
-            var basic = new List<int>();       // FINAL column index per row (after extras appended)
+            var basic       = new List<int>();       // FINAL column index per row (after extras appended)
             var artificials = new List<int>();       // FINAL column indices for artificials
 
             int sCount = 0, tCount = 0, aCount = 0;
