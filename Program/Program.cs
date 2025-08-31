@@ -16,7 +16,10 @@ namespace Project_LPR381
     {
         private static LinearProgrammingModel currentModel;
         private static string outputFilePath = "output.txt";
-        private static StringBuilder outputBuffer = new StringBuilder();
+        private static string tableauOutputFilePath = "tableaus.txt";
+
+        private static string initialModelReport;
+        private static readonly StringBuilder lastAlgorithmLog = new StringBuilder(); // The one and only buffer for algorithm output
 
         static void Main(string[] args)
         {
@@ -36,7 +39,7 @@ namespace Project_LPR381
                     case "2":
                         ViewCurrentModel();
                         break;
-                    case "3": 
+                    case "3":
                         ShowAlgorithmsMenu();
                         break;
                     case "4":
@@ -94,13 +97,14 @@ namespace Project_LPR381
                 currentModel = parser.ParseFile(filePath);
 
                 var generator = new OutputFileGenerator();
-                string reportContent = generator.GenerateOutput(currentModel, filePath);
-                outputBuffer.Clear();
-                outputBuffer.Append(reportContent);
+                // Store the generated analysis report once.
+                initialModelReport = generator.GenerateOutput(currentModel, filePath);
+
+                // Clear the log of any previously run algorithm.
+                lastAlgorithmLog.Clear();
 
                 Console.WriteLine("File loaded successfully!");
                 DisplayModelSummary(currentModel);
-
 
                 if (currentModel.ParsingErrors.Any(e => !e.StartsWith("Info:")))
                 {
@@ -122,24 +126,20 @@ namespace Project_LPR381
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("\n--- PARSING FAILED ---");
                 Console.WriteLine("A number in your input file is incorrectly formatted.");
-                Console.WriteLine("Common causes: using a comma (,) instead of a period (.) for decimals, or accidental letters.");
                 Console.WriteLine($"\nDetailed Error: {ex.Message}");
                 Console.ResetColor();
 
-                outputBuffer.Clear();
-                outputBuffer.AppendLine("MODEL PARSING FAILED");
-                outputBuffer.AppendLine("====================");
-                outputBuffer.AppendLine("Reason: A number in the input file could not be read.");
-                outputBuffer.AppendLine("Please check for typos, commas used as decimal separators, or other non-numeric characters.");
-                outputBuffer.AppendLine($"\nDetailed Error: {ex.Message}");
+                // Update the report and clear the algorithm log on failure.
+                initialModelReport = $"MODEL PARSING FAILED\n====================\nError: {ex.Message}";
+                lastAlgorithmLog.Clear();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Unexpected error: {ex.Message}");
-                outputBuffer.Clear();
-                outputBuffer.AppendLine($"UNEXPECTED ERROR");
-                outputBuffer.AppendLine($"================");
-                outputBuffer.AppendLine($"Error: {ex.Message}");
+
+                // Update the report and clear the algorithm log on failure.
+                initialModelReport = $"UNEXPECTED ERROR\n================\nError: {ex.Message}";
+                lastAlgorithmLog.Clear();
             }
         }
 
@@ -157,28 +157,40 @@ namespace Project_LPR381
             {
                 ConsoleHelper.ShowAlgorithmsMenu();
                 string choice = Console.ReadLine();
-                var log = new IterationLog();
+                bool algorithmWasRun = false;
 
+                if (int.TryParse(choice, out int numericChoice) && numericChoice >= 1 && numericChoice <= 5)
+                {
+                    lastAlgorithmLog.Clear(); // Clear the single log buffer
+                    algorithmWasRun = true;
+                }
+
+                // Pass the single buffer to the logger
+                var log = new IterationLog(lastAlgorithmLog);
                 switch (choice)
                 {
                     case "1":
+                        // The redundant Clear() line has been removed from here.
                         var primalSimplex = new PrimalSimplex();
                         primalSimplex.Solve(currentModel, log);
                         break;
                     case "2":
+                        // The redundant Clear() line has been removed from here.
                         var revisedSimplex = new RevisedSimplex();
                         revisedSimplex.Solve(currentModel, log);
                         break;
                     case "3":
-                        var cuttingPlane = new CuttingPlaneS();
+                        // The redundant Clear() line has been removed from here.
+                        var cuttingPlane = new CuttingPlane();
                         cuttingPlane.Solve(currentModel, log);
                         break;
                     case "4":
+                        // The redundant Clear() line has been removed from here.
                         var bbSimplex = new BranchAndBoundSimplex();
                         bbSimplex.Solve(currentModel, log);
                         break;
                     case "5":
-                        // Knapsack requires a different model type, so we'll run a demo.
+                        // The redundant Clear() line has been removed from here.
                         var knapsackSolver = new BranchAndBoundKnapsack();
                         var knapsackModel = new KnapsackModel
                         {
@@ -186,12 +198,8 @@ namespace Project_LPR381
                             Weights = new double[] { 5, 4, 6, 3 },
                             Capacity = 10
                         };
-
-                        // Ensure Solve matches the correct signature
                         knapsackSolver.Solve(knapsackModel, log);
-
                         break;
-
                     case "6":
                         back = true;
                         break;
@@ -201,9 +209,14 @@ namespace Project_LPR381
                         break;
                 }
 
-                if (!back)
+                if (algorithmWasRun)
                 {
-                    Console.WriteLine("\nPress any key to return to the algorithms menu...");
+                    // Add headers and footers to the log
+                    lastAlgorithmLog.Insert(0, "*********************************\n    ALGORITHM EXECUTION LOG    \n*********************************\n");
+                    lastAlgorithmLog.Append("\n*******************************\n     ALGORITHM EXECUTION END     \n*******************************\n");
+
+                    Console.WriteLine("\nAlgorithm finished. Its output is ready for export.");
+                    Console.WriteLine("Press any key to return to the algorithms menu...");
                     Console.ReadKey();
                 }
             }
@@ -264,7 +277,6 @@ namespace Project_LPR381
 
             DisplayModelSummary(currentModel);
 
-            // Show any errors or warnings
             // Get a list of actual errors and warnings, ignoring informational messages
             var actualErrors = currentModel.ParsingErrors
                 .Where(e => !e.StartsWith("Info:"))
@@ -282,7 +294,7 @@ namespace Project_LPR381
 
             // Show model validation status
             Console.WriteLine($"\nModel Status:");
-            Console.WriteLine($"• Valid Format: {(!currentModel.ParsingErrors.Any(e => e.StartsWith("Warning:") || e.StartsWith("Error:")) ? "Yes" : "No")}"); 
+            Console.WriteLine($"• Valid Format: {(!currentModel.ParsingErrors.Any(e => e.StartsWith("Warning:") || e.StartsWith("Error:")) ? "Yes" : "No")}");
             Console.WriteLine($"• Ready for Solving: {(currentModel.IsValidForSolving() ? "Yes" : "No")}");
         }
 
@@ -429,30 +441,52 @@ namespace Project_LPR381
         }
 
 
-        /// Export results to output file with comprehensive formatting
+        /// Export results to output files with comprehensive formatting
         private static void ExportResults()
         {
-            if (outputBuffer.Length == 0)
+            if (string.IsNullOrEmpty(initialModelReport))
             {
                 Console.WriteLine("No results to export. Please load a model first.");
                 return;
             }
 
-            Console.Write($"Enter output file path (default: {outputFilePath}): ");
-            string filePath = Console.ReadLine();
+            // --- 1. EXPORT MAIN REPORT (Model Analysis Only) ---
+            Console.Write($"Enter main output file path (default: {outputFilePath}): ");
+            string mainFilePath = Console.ReadLine();
+            if (string.IsNullOrEmpty(mainFilePath))
+                mainFilePath = outputFilePath;
 
-            if (string.IsNullOrEmpty(filePath))
-                filePath = outputFilePath;
-
-            // Simple file writing, assuming FileHelper exists
             try
             {
-                System.IO.File.WriteAllText(filePath, outputBuffer.ToString());
-                Console.WriteLine($"Results exported to {filePath}");
+                System.IO.File.WriteAllText(mainFilePath, initialModelReport);
+                Console.WriteLine($"Main model analysis exported to {mainFilePath}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error exporting results: {ex.Message}");
+                Console.WriteLine($"Error exporting main report: {ex.Message}");
+            }
+
+            // --- 2. EXPORT FULL ALGORITHM LOG (if it exists) ---
+            if (lastAlgorithmLog.Length > 0)
+            {
+                Console.Write($"Enter full algorithm log file path (default: {tableauOutputFilePath}): ");
+                string logFilePath = Console.ReadLine();
+                if (string.IsNullOrEmpty(logFilePath))
+                    logFilePath = tableauOutputFilePath;
+
+                try
+                {
+                    System.IO.File.WriteAllText(logFilePath, lastAlgorithmLog.ToString());
+                    Console.WriteLine($"Full algorithm log exported to {logFilePath}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error exporting algorithm log: {ex.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Note: No algorithm log was generated to export.");
             }
         }
     }
