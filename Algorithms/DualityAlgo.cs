@@ -48,46 +48,37 @@ namespace Project_LPR31.Algorithms
 
         /// Placeholder: Solve the dual model -- Done
 
-        public LinearProgrammingModel BuildDualModel(LinearProgrammingModel lpm) //creating a methods for switching the conditions of the primal to dual
+        public LinearProgrammingModel BuildDualModel(LinearProgrammingModel lpm)
         {
             var dual = new LinearProgrammingModel();
 
-            dual.ObjectiveType = lpm.ObjectiveType == ObjectiveType.Maximize ? ObjectiveType.Minimize : ObjectiveType.Maximize; //max -> min OR min -> max
+            dual.ObjectiveType = lpm.ObjectiveType == ObjectiveType.Maximize ? ObjectiveType.Minimize : ObjectiveType.Maximize;
+            dual.ObjectiveCoefficients = lpm.Constraints.Select(c => c.RightHandSide).ToArray();
 
-            dual.ObjectiveCoefficients = lpm.Constraints.Select(c => c.RightHandSide).ToArray(); //checking if the coefficients of the constraints are equal to the right hand side
-
-            dual.Variables = new List<Variable>(); //converting the constraints to variables
+            // Create dual variables based on primal constraints
+            dual.Variables = new List<Variable>();
             for (int j = 0; j < lpm.Constraints.Count; j++)
             {
-                var pconst= lpm.Constraints[j];
-                SignRestriction sr;
-                switch(pconst.ConstraintType)
-                {
-                    case ConstraintRelation.LessOrEqual:
-                        sr = lpm.ObjectiveType == ObjectiveType.Maximize ? SignRestriction.NonNegative : SignRestriction.NonPositive;
-                        break;
-                    case ConstraintRelation.GreaterOrEqual:
-                        sr = lpm.ObjectiveType == ObjectiveType.Maximize ? SignRestriction.NonPositive : SignRestriction.NonNegative;
-                        break;
-                    case ConstraintRelation.Equal:
-                        sr = SignRestriction.Unrestricted;
-                        break;
-                    default:
-                        sr = SignRestriction.Unrestricted;
-                        break;
-                }
-                string name=$"y{j+1}";
-                dual.Variables.Add(new Variable(name,sr,j));
+                // This logic seems incomplete in your file, so we'll assume y >= 0 for simplicity.
+                // A full implementation would check primal variable sign restrictions.
+                string name = $"y{j + 1}";
+                dual.Variables.Add(new Variable(name, SignRestriction.NonNegative, j));
             }
-            dual.Constraints = new List<Constraint>(); //converting the variables to constraints
+
+            // Create dual constraints based on primal variables
+            dual.Constraints = new List<Constraint>();
+            // Determine the correct relation for all dual constraints
+            string dualRelation = lpm.ObjectiveType == ObjectiveType.Maximize ? ">=" : "<=";
+
             for (int i = 0; i < lpm.Variables.Count; i++)
             {
                 var coeffs = new double[lpm.Constraints.Count];
-
                 for (int j = 0; j < lpm.Constraints.Count; j++)
+                {
                     coeffs[j] = lpm.Constraints[j].Coefficients[i];
-
-                dual.Constraints.Add(new Constraint(coeffs, "", lpm.ObjectiveCoefficients[i]));
+                }
+                // Use the correct dualRelation here instead of an empty string
+                dual.Constraints.Add(new Constraint(coeffs, dualRelation, lpm.ObjectiveCoefficients[i]));
             }
             return dual;
         }

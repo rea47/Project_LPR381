@@ -304,7 +304,6 @@ namespace Project_LPR381
         /// Run duality analysis on the current model
         private static void ShowDualityMenu()
         {
-            LinearProgrammingModel lpm = new LinearProgrammingModel();
             bool back = false;
             var duality = new Project_LPR31.Algorithms.DualityAlgo();
 
@@ -312,38 +311,40 @@ namespace Project_LPR381
             {
                 Console.Clear();
                 Console.WriteLine("=== Duality Analysis Menu ===");
-                Console.WriteLine("1. Apply Duality");
+                Console.WriteLine("1. Show Primal and Dual Forms");
                 Console.WriteLine("2. Solve Dual Model");
                 Console.WriteLine("3. Verify Strong/Weak Duality");
                 Console.WriteLine("4. Back to Main Menu");
                 Console.Write("Select option: ");
                 string input = Console.ReadLine();
 
+                // Check if a model is loaded BEFORE attempting any action.
+                if (currentModel == null && input != "4")
+                {
+                    Console.WriteLine("\nNo model loaded. Please load a model from the main menu first.");
+                    System.Threading.Thread.Sleep(2000);
+                    continue; // Go back to the start of the loop
+                }
+
                 switch (input)
                 {
                     case "1":
-                        if (currentModel == null)
-                        {
-                            Console.WriteLine("No model loaded.");
-                        }
-                        else
-                        {
-                            duality.ApplyDuality(currentModel);
-                        }
-                        Console.WriteLine("\nReturning to Duality Menu...");
-                        System.Threading.Thread.Sleep(1500);
+                        // Pass the loaded model
+                        duality.ApplyDuality(currentModel);
                         break;
 
                     case "2":
-                        duality.SolveDualModel(lpm);
-                        Console.WriteLine("\nReturning to Duality Menu...");
-                        System.Threading.Thread.Sleep(1500);
+                        // Pass the loaded model
+                        duality.SolveDualModel(currentModel);
+                        Console.WriteLine("\nPress any key to return to the Duality Menu...");
+                        Console.ReadKey();
                         break;
 
                     case "3":
-                        duality.VerifyDuality(lpm);
-                        Console.WriteLine("\nReturning to Duality Menu...");
-                        System.Threading.Thread.Sleep(1500);
+                        // Pass the loaded model
+                        duality.VerifyDuality(currentModel);
+                        Console.WriteLine("\nPress any key to return to the Duality Menu...");
+                        Console.ReadKey();
                         break;
 
                     case "4":
@@ -357,7 +358,6 @@ namespace Project_LPR381
                 }
             }
         }
-
         private static void ShowSensitivityMenu()
         {
             if (currentModel == null)
