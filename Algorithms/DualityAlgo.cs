@@ -11,9 +11,7 @@ namespace Project_LPR31.Algorithms
 {
     public class DualityAlgo
     {
-        /// <summary>
         /// Print a basic duality analysis of the given model --done
-        /// </summary>
         /// 
         public void ApplyDuality(LinearProgrammingModel lpm)
         {
@@ -48,10 +46,7 @@ namespace Project_LPR31.Algorithms
             Console.ReadKey();
         }
 
-        /// <summary>
         /// Placeholder: Solve the dual model -- Done
-        /// </summary>
-        /// 
 
         public LinearProgrammingModel BuildDualModel(LinearProgrammingModel lpm) //creating a methods for switching the conditions of the primal to dual
         {
@@ -111,9 +106,7 @@ namespace Project_LPR31.Algorithms
             Console.WriteLine(result.ToString());
         }
 
-        /// <summary>
         /// Placeholder: Verify strong/weak duality conditions  --Done
-        /// </summary>
         public void VerifyDuality(LinearProgrammingModel lpm)
         {
             IterationLog il = new IterationLog();

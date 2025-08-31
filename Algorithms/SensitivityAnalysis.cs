@@ -37,7 +37,7 @@ namespace Project_LPR381.Algorithms
                 Console.WriteLine("2. Ranges for Objective Coefficients (Non-Basic Variables)");
                 Console.WriteLine("3. Ranges for Constraint RHS Values (Feasibility)");
                 Console.WriteLine("4. Calculate Shadow Prices");
-                Console.WriteLine("0. Return to Main Menu");
+                Console.WriteLine("5. Return to Main Menu");
                 Console.Write("Select an option: ");
                 string choice = Console.ReadLine();
 
@@ -57,7 +57,7 @@ namespace Project_LPR381.Algorithms
                     case "4":
                         ComputeShadowPrices();
                         break;
-                    case "0":
+                    case "5":
                         exit = true;
                         break;
                     default:
