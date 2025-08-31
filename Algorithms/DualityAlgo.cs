@@ -65,19 +65,25 @@ namespace Project_LPR31.Algorithms
                 {
                     case ConstraintRelation.LessOrEqual:
                         sr = lpm.ObjectiveType == ObjectiveType.Maximize ? SignRestriction.NonNegative : SignRestriction.NonPositive;
+                        string name = $"y{j + 1}";
+                        dual.Variables.Add(new Variable(name, sr, j));
                         break;
                     case ConstraintRelation.GreaterOrEqual:
                         sr = lpm.ObjectiveType == ObjectiveType.Maximize ? SignRestriction.NonPositive : SignRestriction.NonNegative;
+                        string name1 = $"y{j + 1}";
+                        dual.Variables.Add(new Variable(name1, sr, j));
                         break;
                     case ConstraintRelation.Equal:
                         sr = SignRestriction.Unrestricted;
+                        string name2 = $"y{j + 1}";
+                        dual.Variables.Add(new Variable(name2, sr, j));
                         break;
                     default:
                         sr = SignRestriction.Unrestricted;
+                        string name3 = $"y{j + 1}";
+                        dual.Variables.Add(new Variable(name3, sr, j));
                         break;
                 }
-                string name=$"y{j+1}";
-                dual.Variables.Add(new Variable(name,sr,j));
             }
             dual.Constraints = new List<Constraint>(); //converting the variables to constraints
             for (int i = 0; i < lpm.Variables.Count; i++)
@@ -87,7 +93,12 @@ namespace Project_LPR31.Algorithms
                 for (int j = 0; j < lpm.Constraints.Count; j++)
                     coeffs[j] = lpm.Constraints[j].Coefficients[i];
 
-                dual.Constraints.Add(new Constraint(coeffs, "", lpm.ObjectiveCoefficients[i]));
+                if (lpm.ObjectiveType == ObjectiveType.Maximize)
+                    dual.Constraints.Add(new Constraint(coeffs, ">=", lpm.ObjectiveCoefficients[i]));
+                else if(lpm.ObjectiveType == ObjectiveType.Minimize)
+                    dual.Constraints.Add(new Constraint(coeffs, "<=", lpm.ObjectiveCoefficients[i]));
+                else
+                    dual.Constraints.Add(new Constraint(coeffs, "=" , lpm.ObjectiveCoefficients[i]));
             }
 
             return dual;
